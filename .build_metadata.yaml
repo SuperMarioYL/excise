@@ -82,3 +82,8 @@ drift_from_plan:
     rationale: "Required by the polished-tier asciinema asset; documented in BUILD_SETUP_NEXT_STEPS.md."
   - kind: scope_check
     rationale: "All 15 plan-mandated target_files exist at exact specified paths; out_of_scope items remain out of scope."
+
+shipped_at: 2026-05-18T06:35:05Z
+shipped_by: yulei
+release_url: https://github.com/SuperMarioYL/excise/releases/tag/v0.1.0
+repo: SuperMarioYL/excise
