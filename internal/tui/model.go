@@ -21,22 +21,39 @@ import (
 // Model is the picker's pure state. It is exported so the CLI and the tests
 // can construct it directly.
 type Model struct {
-	Turns    []session.Turn
-	Cursor   int
-	Marked   map[string]bool // turn IDs the user has marked for excision
-	Width    int
-	Height   int
-	Quit     bool
-	Commit   bool
-	Aborted  bool
+	Turns     []session.Turn
+	Cursor    int
+	Marked    map[string]bool // turn IDs the user has marked for excision
+	PreMarked map[string]bool // v0.2: turn IDs pre-marked by the suggestion engine
+	Width     int
+	Height    int
+	Quit      bool
+	Commit    bool
+	Aborted   bool
 }
 
 // NewModel builds a picker over the given session.
 func NewModel(s *session.Session) *Model {
 	return &Model{
-		Turns:  s.Turns,
-		Marked: map[string]bool{},
+		Turns:     s.Turns,
+		Marked:    map[string]bool{},
+		PreMarked: map[string]bool{},
 	}
+}
+
+// NewModelWithPreMarked builds a picker and pre-populates the marked set
+// (and the PreMarked indicator set) from the supplied turn ids. v0.2 entry
+// point used when `excise pick` calls the heuristic engine.
+func NewModelWithPreMarked(s *session.Session, preMarked []string) *Model {
+	m := NewModel(s)
+	for _, id := range preMarked {
+		if id == "" {
+			continue
+		}
+		m.PreMarked[id] = true
+		m.Marked[id] = true
+	}
+	return m
 }
 
 // MoveDown advances the cursor by one (clamped).
@@ -126,12 +143,24 @@ func (m *Model) Header() string {
 
 // RenderList returns a plain-text render of the visible window. The TUI
 // layer wraps this with lipgloss styles; tests use it directly.
+//
+// In v0.2 a turn that came in pre-marked by the suggestion engine renders
+// with a ◆ glyph instead of the usual x — so the user can spot which marks
+// originated from the heuristics vs. their own clicks. Once the user
+// toggles a pre-marked turn off (or toggles a different turn on), only the
+// Marked map is consulted for the commit; PreMarked is a render-only hint.
 func (m *Model) RenderList() string {
 	var b strings.Builder
+	hasPreMarked := false
 	for i, t := range m.Turns {
 		mark := " "
 		if m.Marked[t.ID] {
-			mark = "x"
+			if m.PreMarked[t.ID] {
+				mark = "◆"
+				hasPreMarked = true
+			} else {
+				mark = "x"
+			}
 		}
 		cursor := " "
 		if i == m.Cursor {
@@ -143,6 +172,9 @@ func (m *Model) RenderList() string {
 			preview = "(empty)"
 		}
 		fmt.Fprintf(&b, "%s [%s] #%03d %-9s ~%4dt  %s\n", cursor, mark, i+1, role, t.TokenEst, truncate(preview, 80))
+	}
+	if hasPreMarked {
+		fmt.Fprintln(&b, "◆ suggested — press space to uncheck")
 	}
 	return b.String()
 }

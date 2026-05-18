@@ -25,10 +25,11 @@ import (
 
 	"github.com/SuperMarioYL/excise/internal/safety"
 	"github.com/SuperMarioYL/excise/internal/session"
+	"github.com/SuperMarioYL/excise/internal/suggest"
 	"github.com/SuperMarioYL/excise/internal/tui"
 )
 
-var version = "0.1.0"
+var version = "0.2.0"
 
 func main() {
 	root := newRootCmd()
@@ -45,6 +46,7 @@ type globalFlags struct {
 	force      bool
 	dryRun     bool
 	yes        bool
+	noSuggest  bool // v0.2: disable heuristic pre-mark in `pick`
 }
 
 func newRootCmd() *cobra.Command {
@@ -74,11 +76,13 @@ ordering, stable ids, and atomic tool_use ↔ tool_result pairs.`,
 	root.PersistentFlags().BoolVar(&gf.force, "force", false, "proceed even when dependency-aware warnings fire")
 	root.PersistentFlags().BoolVar(&gf.dryRun, "dry-run", false, "print the diff but do not write")
 	root.PersistentFlags().BoolVarP(&gf.yes, "yes", "y", false, "skip the confirmation prompt")
+	root.PersistentFlags().BoolVar(&gf.noSuggest, "no-suggest", false, "skip the v0.2 heuristic pre-mark in the picker (restore v0.1 behavior)")
 
 	root.AddCommand(newListCmd(&gf))
 	root.AddCommand(newPickCmd(&gf))
 	root.AddCommand(newCutCmd(&gf))
 	root.AddCommand(newRollbackCmd(&gf))
+	root.AddCommand(newSuggestCmd(&gf))
 
 	return root
 }
@@ -230,7 +234,15 @@ func runPick(gf *globalFlags) error {
 		fmt.Fprintln(os.Stderr, "excise: session has no turns")
 		return nil
 	}
-	m, err := tui.RunBubbletea(s)
+	var preMarked []string
+	if !gf.noSuggest {
+		scores := suggest.Score(s)
+		preMarked = suggest.TopKIDs(scores, 5, 0.0)
+		if len(preMarked) > 0 {
+			fmt.Fprintf(os.Stderr, "excise: %d turn(s) pre-marked by the suggestion engine (--no-suggest to disable)\n", len(preMarked))
+		}
+	}
+	m, err := tui.RunBubbleteaWithPreMarked(s, preMarked)
 	if err != nil {
 		return err
 	}

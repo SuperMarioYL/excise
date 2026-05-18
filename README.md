@@ -60,6 +60,7 @@ atomic (snapshot, write-to-tmp, rename).
 
 - [Install](#install)
 - [Quick start](#quick-start)
+- [v0.2 — Suggestions](#v02--suggestions)
 - [Commands](#commands)
 - [How dependency-aware cutting works](#how-dependency-aware-cutting-works)
 - [Snapshots and rollback](#snapshots-and-rollback)
@@ -124,13 +125,63 @@ In the TUI:
 
 The header live-updates `turns: 42 → 39   tokens: ~18.2k → ~12.4k` as you mark.
 
+## v0.2 — Suggestions
+
+`excise suggest` runs a **pure-stdlib heuristic scorer** over the session and
+nominates the top-K candidate turns to excise. Zero network, no LLM, no
+auto-cut — the scorer only suggests; you still confirm in the TUI.
+
+```text
+ #   role        tokens   heuristic                                        preview
+---  ---------   ------   ----------------------------------------------   ----------------------
+ 17  assistant     2840   high_token_cost + user_correction_follows_up     "Let me try refactoring …"
+ 19  tool_use       420   tool_use_error_then_correction                   Edit(path=foo, …) ERROR
+ 32  assistant     3100   high_token_cost + repeated_file_edit             "Actually let me revert …"
+ 33  assistant     1820   repeated_file_edit + user_correction_follows_up  "I'll switch to using …"
+ 47  assistant     2200   long_drift_no_tool_calls + high_token_cost       "To summarize what we …"
+
+5 candidates totalling ~10,380 tokens. Run `excise pick` to review interactively.
+```
+
+Five heuristics contribute to each turn's score:
+
+| trigger | what it fires on |
+| --- | --- |
+| `high_token_cost` | assistant or tool turn weighing ≥ 2 000 tokens |
+| `repeated_file_edit` | same file edited 3+ times in a row (window = 3) |
+| `user_correction_follows_up` | next user turn matches the **bilingual** correction lexicon (`no`, `actually`, `try a different approach`, `不对`, `换个思路` …) |
+| `tool_use_error_then_correction` | a tool returned an error AND the next user turn said so |
+| `long_drift_no_tool_calls` | 5+ consecutive assistant turns with no `tool_use` |
+
+`excise pick` calls the scorer **by default** and pre-marks the top-K
+candidates in the TUI — those marks render with a `[◆]` glyph instead of
+the manual `[x]`. Toggle freely with `space`; commit only honors your final
+marks. Pass `--no-suggest` to restore v0.1 behavior.
+
+```bash
+# Dry-run the suggestion engine — never touches the file
+excise suggest
+
+# Top-3, only above score 1.5, JSON output
+excise suggest --top=3 --min-score=1.5 --json testdata/claude_session_polluted.jsonl
+
+# Skip the pre-mark — v0.1 picker behavior
+excise pick --no-suggest
+```
+
+The scorer is a **pure function of one session**: no cross-session learning,
+no acceptance log written, no shared cache. That keeps the trust premise
+intact and means a v0.2 binary on an air-gapped machine behaves identically
+to one online.
+
 ## Commands
 
 ```
-excise [path]                      open the TUI (auto-discover if no path)
+excise [path]                      open the TUI (auto-discover if no path; pre-mark via heuristics)
 excise list [path]                 print the turn table (no edits)
 excise pick [path]                 open the TUI (alias for the bare command)
 excise cut <range> [path]          non-interactive; e.g. "5-7,9"
+excise suggest [path]              v0.2 — print top-K heuristic candidates (read-only)
 excise rollback --list             list every snapshot, newest first
 excise rollback <snapshot-id>      restore one snapshot
 
@@ -140,6 +191,12 @@ global flags:
   --force                           proceed despite dependency warnings
   --dry-run                         show the diff but do not write
   -y, --yes                         skip the confirmation prompt
+  --no-suggest                      v0.2 — skip the heuristic pre-mark in the picker
+
+suggest-only flags:
+  --top N                           show at most N suggestions (0 = all; default 5)
+  --min-score X                     drop suggestions below score X (default 0)
+  --json                            emit JSON instead of a table
 ```
 
 ## How dependency-aware cutting works
@@ -209,17 +266,23 @@ One binary, no daemon, no IPC.
 
 ## Roadmap
 
-- **v0.2** — direct `state.vscdb` writes with a "Cursor closed?" guard; support for
-  multi-composer Cursor windows.
-- **v0.3** — Codex / Aider / Cline support behind the same primitive.
-- **v0.4** — `excise grep <regex>` to mark by content match.
-- **v0.5** — a "session debugger" sidecar that lets you inspect tool-call
+- **v0.2** ✅ — heuristic suggestion engine + TUI pre-mark (this release).
+- **v0.3** — direct `state.vscdb` writes with a "Cursor closed?" guard; opt-in
+  LLM-assisted suggestions as a plugin (local Ollama / user-supplied API key).
+- **v0.4** — Codex / Aider / Cline support behind the same primitive.
+- **v0.5** — `excise grep <regex>` to mark by content match.
+- **v0.6** — a "session debugger" sidecar that lets you inspect tool-call
   graphs without cutting anything.
 
 ## Out of scope (on purpose)
 
 - Web UI or hosted service. CLI/TUI only.
-- Automatic poisoned-turn detection. You pick — we do not call an LLM.
+- Auto-**cutting** turns. v0.2 only **suggests** (pure-stdlib heuristics,
+  zero network); you still press `enter` to commit. `excise autocut` is
+  explicitly never going to ship.
+- LLM-assisted suggestions of any kind (local Ollama / user-supplied API
+  key / hosted endpoint). All deferred to v0.3 as opt-in plugins so the
+  v0.2 binary signature and trust premise stay put.
 - Prompt-cache reconciliation. Editing invalidates the cache; you accept the
   cost.
 - A Claude Code plugin. We operate on the on-disk file between sessions.

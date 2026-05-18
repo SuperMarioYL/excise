@@ -17,15 +17,17 @@ type teaModel struct {
 }
 
 var (
-	styleHeader  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	styleSep     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	styleCursor  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("33"))
-	styleMarked  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	styleRoleU   = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	styleRoleA   = lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
-	styleRoleT   = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	styleRoleS   = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	styleHelp    = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("241"))
+	styleHeader      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	styleSep         = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styleCursor      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("33"))
+	styleMarked      = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	stylePreMarked   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")) // v0.2: amber
+	styleSuggestHint = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("214"))
+	styleRoleU       = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
+	styleRoleA       = lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
+	styleRoleT       = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	styleRoleS       = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	styleHelp        = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("241"))
 )
 
 func (tm teaModel) Init() tea.Cmd { return nil }
@@ -95,7 +97,11 @@ func (tm teaModel) View() string {
 		}
 		mark := "[ ]"
 		if m.Marked[t.ID] {
-			mark = styleMarked.Render("[x]")
+			if m.PreMarked[t.ID] {
+				mark = stylePreMarked.Render("[◆]")
+			} else {
+				mark = styleMarked.Render("[x]")
+			}
 		}
 		role := renderRole(t.Role)
 		preview := t.Preview
@@ -105,10 +111,23 @@ func (tm teaModel) View() string {
 		fmt.Fprintf(&b, "%s%s #%03d %s ~%4dt  %s\n", cursor, mark, i+1, role, t.TokenEst, truncate(preview, 70))
 	}
 
+	if hasAnyPreMarked(m) {
+		b.WriteString("\n")
+		b.WriteString(styleSuggestHint.Render("◆ suggested — press space to uncheck"))
+	}
 	b.WriteString("\n")
 	b.WriteString(styleHelp.Render("[j/k] move  [space/x] mark  [d] mark+next  [g/G] top/bot  [enter] commit  [q] abort"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+func hasAnyPreMarked(m *Model) bool {
+	for id := range m.PreMarked {
+		if m.Marked[id] {
+			return true
+		}
+	}
+	return false
 }
 
 func renderRole(r session.Role) string {
@@ -128,7 +147,13 @@ func renderRole(r session.Role) string {
 // (with Commit / Aborted flags set) so the CLI can act on the user's
 // choice.
 func RunBubbletea(s *session.Session) (*Model, error) {
-	m := NewModel(s)
+	return RunBubbleteaWithPreMarked(s, nil)
+}
+
+// RunBubbleteaWithPreMarked is the v0.2 entry point — same as RunBubbletea
+// but seeds the picker's marked set from the supplied turn ids.
+func RunBubbleteaWithPreMarked(s *session.Session, preMarked []string) (*Model, error) {
+	m := NewModelWithPreMarked(s, preMarked)
 	p := tea.NewProgram(teaModel{M: m})
 	if _, err := p.Run(); err != nil {
 		return nil, err
