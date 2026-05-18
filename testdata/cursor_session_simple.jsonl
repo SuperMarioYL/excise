@@ -1,0 +1,5 @@
+{"composerId":"comp-aaa","bubble":{"bubbleId":"b-001","type":1,"text":"Refactor this function to use a switch.","timestamp":"2026-05-18T12:00:00.000Z","tokenCount":{"inputTokens":12,"outputTokens":0}}}
+{"composerId":"comp-aaa","bubble":{"bubbleId":"b-002","type":2,"text":"Here is the refactored version using a switch.","timestamp":"2026-05-18T12:00:05.000Z","tokenCount":{"inputTokens":0,"outputTokens":42},"toolFormers":[{"toolCallId":"tc-1","name":"edit_file"}]}}
+{"composerId":"comp-aaa","bubble":{"bubbleId":"b-003","type":2,"text":"","timestamp":"2026-05-18T12:00:06.000Z","toolResults":[{"toolCallId":"tc-1","name":"edit_file"}]}}
+{"composerId":"comp-aaa","bubble":{"bubbleId":"b-004","type":1,"text":"Actually undo that, use if/else.","timestamp":"2026-05-18T12:00:30.000Z","tokenCount":{"inputTokens":8,"outputTokens":0}}}
+{"composerId":"comp-aaa","bubble":{"bubbleId":"b-005","type":2,"text":"Reverted to if/else.","timestamp":"2026-05-18T12:00:34.000Z","tokenCount":{"inputTokens":0,"outputTokens":18}}}

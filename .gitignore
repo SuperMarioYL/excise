@@ -1,0 +1,22 @@
+# binaries
+/excise
+/dist/
+*.out
+*.test
+
+# OS
+.DS_Store
+Thumbs.db
+
+# editor
+.idea/
+.vscode/
+*.swp
+
+# claude
+CLAUDE.md
+.claude/
+
+# coverage
+coverage.txt
+*.cov
