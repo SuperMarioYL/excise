@@ -61,11 +61,13 @@ atomic (snapshot, write-to-tmp, rename).
 - [Install](#install)
 - [Quick start](#quick-start)
 - [v0.2 — Suggestions](#v02--suggestions)
+- [v0.3 — LLM rerank (opt-in, local Ollama)](#v03--llm-rerank-opt-in-local-ollama)
 - [Commands](#commands)
 - [How dependency-aware cutting works](#how-dependency-aware-cutting-works)
 - [Snapshots and rollback](#snapshots-and-rollback)
 - [Supported transcript formats](#supported-transcript-formats)
 - [Architecture](#architecture)
+- [Trust contract](#trust-contract)
 - [Roadmap](#roadmap)
 - [Out of scope (on purpose)](#out-of-scope-on-purpose)
 - [Contributing](#contributing)
@@ -174,6 +176,55 @@ no acceptance log written, no shared cache. That keeps the trust premise
 intact and means a v0.2 binary on an air-gapped machine behaves identically
 to one online.
 
+## v0.3 — LLM rerank (opt-in, local Ollama)
+
+v0.3 lets you *optionally* layer a local Ollama model on top of the v0.2
+heuristic shortlist. The heuristic stays the cheap pre-filter; the LLM only
+judges that shortlist and writes a one-line reason per turn. Default behaviour
+is unchanged from v0.2 — `--llm` is the only switch.
+
+```bash
+# install ollama (https://ollama.com), then pull a small model:
+ollama pull llama3.2
+
+# point excise at it, just for this run:
+excise suggest --llm session.jsonl
+excise pick --llm session.jsonl     # TUI shows the LLM reason next to each pre-marked turn
+```
+
+Optional `excise.toml` (discovered at `./excise.toml` → `$XDG_CONFIG_HOME/excise/excise.toml`
+→ `~/.config/excise/excise.toml`):
+
+```toml
+[llm]
+host = "http://localhost:11434"   # your Ollama
+model = "llama3.2"
+top_n = 5
+timeout_sec = 20
+```
+
+**Graceful fallback.** If Ollama is unreachable, the model is missing, the call
+times out, or the response is malformed, Excise prints one line to stderr —
+
+```
+[excise] LLM unavailable (<reason>) — falling back to heuristic ranking
+```
+
+— and continues with the v0.2 heuristic result. You always get *some* output;
+`--llm` set in muscle memory never hard-blocks you.
+
+**Trust contract under `--llm`** (unchanged from v0.1/v0.2):
+
+- **No outbound network** beyond the host you configured. Default
+  `http://localhost:11434` is your own Ollama; if you point elsewhere you made
+  that choice explicitly.
+- **No autocut.** `--llm` only changes the *ranking* — every excision is still
+  user-confirmed in the TUI or via explicit `excise cut <range>`.
+- **No telemetry, no acceptance log, no cross-session learning.** Same posture
+  as v0.1/v0.2.
+
+Remote API-key backends (OpenAI / Anthropic / OpenRouter) are deferred to v0.4.
+
 ## Commands
 
 ```
@@ -192,6 +243,9 @@ global flags:
   --dry-run                         show the diff but do not write
   -y, --yes                         skip the confirmation prompt
   --no-suggest                      v0.2 — skip the heuristic pre-mark in the picker
+  --llm                             v0.3 — rerank the heuristic shortlist via local Ollama
+  --llm-model NAME                  v0.3 — override model from excise.toml (e.g. llama3.2)
+  --llm-host URL                    v0.3 — override host from excise.toml
 
 suggest-only flags:
   --top N                           show at most N suggestions (0 = all; default 5)

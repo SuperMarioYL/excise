@@ -9,14 +9,19 @@ import (
 
 // TurnScore is one row in the scorer's output — a turn id, its preview, its
 // total score, and the list of heuristics that fired on it.
+//
+// LLMReason is empty in v0.2 output and populated only when the v0.3
+// `--llm` rerank ran. Downstream renderers MUST treat an empty value as
+// "no LLM verdict" rather than as a missing field.
 type TurnScore struct {
-	TurnID   string             `json:"turn_id"`
-	Index    int                `json:"index"`     // 1-based position in the session
-	Role     string             `json:"role"`
-	Tokens   int                `json:"tokens"`
-	Score    float64            `json:"score"`
-	Triggers []HeuristicTrigger `json:"triggers"`
-	Preview  string             `json:"preview"`
+	TurnID    string             `json:"turn_id"`
+	Index     int                `json:"index"`     // 1-based position in the session
+	Role      string             `json:"role"`
+	Tokens    int                `json:"tokens"`
+	Score     float64            `json:"score"`
+	Triggers  []HeuristicTrigger `json:"triggers"`
+	Preview   string             `json:"preview"`
+	LLMReason string             `json:"llm_reason,omitempty"`
 }
 
 // Score runs the 5 heuristics over s.Turns and returns one TurnScore per
