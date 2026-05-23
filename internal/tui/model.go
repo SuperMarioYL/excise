@@ -21,23 +21,25 @@ import (
 // Model is the picker's pure state. It is exported so the CLI and the tests
 // can construct it directly.
 type Model struct {
-	Turns     []session.Turn
-	Cursor    int
-	Marked    map[string]bool // turn IDs the user has marked for excision
-	PreMarked map[string]bool // v0.2: turn IDs pre-marked by the suggestion engine
-	Width     int
-	Height    int
-	Quit      bool
-	Commit    bool
-	Aborted   bool
+	Turns      []session.Turn
+	Cursor     int
+	Marked     map[string]bool   // turn IDs the user has marked for excision
+	PreMarked  map[string]bool   // v0.2: turn IDs pre-marked by the suggestion engine
+	LLMReasons map[string]string // v0.3: per-turn rationale from --llm rerank (render-only)
+	Width      int
+	Height     int
+	Quit       bool
+	Commit     bool
+	Aborted    bool
 }
 
 // NewModel builds a picker over the given session.
 func NewModel(s *session.Session) *Model {
 	return &Model{
-		Turns:     s.Turns,
-		Marked:    map[string]bool{},
-		PreMarked: map[string]bool{},
+		Turns:      s.Turns,
+		Marked:     map[string]bool{},
+		PreMarked:  map[string]bool{},
+		LLMReasons: map[string]string{},
 	}
 }
 
@@ -45,6 +47,14 @@ func NewModel(s *session.Session) *Model {
 // (and the PreMarked indicator set) from the supplied turn ids. v0.2 entry
 // point used when `excise pick` calls the heuristic engine.
 func NewModelWithPreMarked(s *session.Session, preMarked []string) *Model {
+	return NewModelWithReasons(s, preMarked, nil)
+}
+
+// NewModelWithReasons is the v0.3 entry point — same as
+// NewModelWithPreMarked but also attaches an LLM rationale per turn (used
+// by the bubbletea sidebar). Passing reasons=nil is equivalent to
+// NewModelWithPreMarked, so callers that don't use --llm pay zero cost.
+func NewModelWithReasons(s *session.Session, preMarked []string, reasons map[string]string) *Model {
 	m := NewModel(s)
 	for _, id := range preMarked {
 		if id == "" {
@@ -52,6 +62,12 @@ func NewModelWithPreMarked(s *session.Session, preMarked []string) *Model {
 		}
 		m.PreMarked[id] = true
 		m.Marked[id] = true
+	}
+	for id, r := range reasons {
+		if r == "" {
+			continue
+		}
+		m.LLMReasons[id] = r
 	}
 	return m
 }

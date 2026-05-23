@@ -25,11 +25,10 @@ import (
 
 	"github.com/SuperMarioYL/excise/internal/safety"
 	"github.com/SuperMarioYL/excise/internal/session"
-	"github.com/SuperMarioYL/excise/internal/suggest"
 	"github.com/SuperMarioYL/excise/internal/tui"
 )
 
-var version = "0.2.0"
+var version = "0.3.0"
 
 func main() {
 	root := newRootCmd()
@@ -47,6 +46,12 @@ type globalFlags struct {
 	dryRun     bool
 	yes        bool
 	noSuggest  bool // v0.2: disable heuristic pre-mark in `pick`
+
+	// v0.3 LLM-rerank knobs. Shared between `pick` and `suggest` because
+	// both commands run the same heuristic→rerank pipeline.
+	llm        bool   // opt-in: route the heuristic shortlist through Ollama
+	llmModel   string // CLI override of [llm].model
+	llmHost    string // CLI override of [llm].host
 }
 
 func newRootCmd() *cobra.Command {
@@ -77,6 +82,9 @@ ordering, stable ids, and atomic tool_use ↔ tool_result pairs.`,
 	root.PersistentFlags().BoolVar(&gf.dryRun, "dry-run", false, "print the diff but do not write")
 	root.PersistentFlags().BoolVarP(&gf.yes, "yes", "y", false, "skip the confirmation prompt")
 	root.PersistentFlags().BoolVar(&gf.noSuggest, "no-suggest", false, "skip the v0.2 heuristic pre-mark in the picker (restore v0.1 behavior)")
+	root.PersistentFlags().BoolVar(&gf.llm, "llm", false, "v0.3: rerank the heuristic shortlist via the local Ollama host (opt-in)")
+	root.PersistentFlags().StringVar(&gf.llmModel, "llm-model", "", "v0.3: override the [llm].model from excise.toml")
+	root.PersistentFlags().StringVar(&gf.llmHost, "llm-host", "", "v0.3: override the [llm].host from excise.toml")
 
 	root.AddCommand(newListCmd(&gf))
 	root.AddCommand(newPickCmd(&gf))
@@ -235,14 +243,23 @@ func runPick(gf *globalFlags) error {
 		return nil
 	}
 	var preMarked []string
+	var reasons map[string]string
 	if !gf.noSuggest {
-		scores := suggest.Score(s)
-		preMarked = suggest.TopKIDs(scores, 5, 0.0)
-		if len(preMarked) > 0 {
+		ctx, cancel := rerankBackgroundContext()
+		defer cancel()
+		res, rErr := rankCandidates(ctx, gf, s, 5, 0.0, os.Stderr)
+		if rErr != nil {
+			return rErr
+		}
+		preMarked = idsFor(res.Picks, 5, 0.0)
+		if res.UsedLLM && anyLLMReason(res.Picks) {
+			reasons = reasonsFor(res.Picks)
+			fmt.Fprintf(os.Stderr, "excise: %d turn(s) pre-marked by ollama:%s (--no-suggest to disable)\n", len(preMarked), res.Model)
+		} else if len(preMarked) > 0 {
 			fmt.Fprintf(os.Stderr, "excise: %d turn(s) pre-marked by the suggestion engine (--no-suggest to disable)\n", len(preMarked))
 		}
 	}
-	m, err := tui.RunBubbleteaWithPreMarked(s, preMarked)
+	m, err := tui.RunBubbleteaWithReasons(s, preMarked, reasons)
 	if err != nil {
 		return err
 	}

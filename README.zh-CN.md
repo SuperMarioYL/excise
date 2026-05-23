@@ -170,6 +170,51 @@ excise pick --no-suggest
 建议、也不维护共享缓存。这样 v0.2 的二进制在断网机器上的行为，和联网时
 一模一样。
 
+## v0.3 — LLM 重排（可选，仅本地 Ollama）
+
+v0.3 让你**可选**在 v0.2 的启发式短名单上再叠一层本地 Ollama 模型。启发式
+仍然是便宜的预筛；LLM 只对短名单做重排并给每条 turn 写一句理由。默认行为
+和 v0.2 完全一样——`--llm` 是唯一开关。
+
+```bash
+# 装 Ollama（https://ollama.com），拉一个小模型：
+ollama pull llama3.2
+
+# 只在本次跑里启用 LLM：
+excise suggest --llm session.jsonl
+excise pick --llm session.jsonl     # TUI 会在每条预标记的 turn 旁边显示 LLM 理由
+```
+
+可选的 `excise.toml`（发现路径：`./excise.toml` → `$XDG_CONFIG_HOME/excise/excise.toml`
+→ `~/.config/excise/excise.toml`）：
+
+```toml
+[llm]
+host = "http://localhost:11434"   # 你自己的 Ollama
+model = "llama3.2"
+top_n = 5
+timeout_sec = 20
+```
+
+**优雅降级。** 如果 Ollama 连不上、模型缺失、调用超时，或返回不合法，Excise
+会在 stderr 打一行——
+
+```
+[excise] LLM unavailable (<原因>) — falling back to heuristic ranking
+```
+
+——然后用 v0.2 的启发式结果继续。`--llm` 写进肌肉记忆里也不会硬卡住你。
+
+**`--llm` 下的信任契约**（与 v0.1/v0.2 一致）：
+
+- **不发任何外网请求**，只发到你配置的 host。默认 `http://localhost:11434`
+  是你自己机器的 Ollama；指向别处是你自己显式做的选择。
+- **不 autocut。** `--llm` 只改变*排序*，每一条切除仍然要你在 TUI 里、或者
+  显式 `excise cut <range>` 确认。
+- **不打点、不记接受日志、不跨会话学习。** 立场和 v0.1/v0.2 完全一样。
+
+远程 API key 后端（OpenAI / Anthropic / OpenRouter）推迟到 v0.4。
+
 ## 命令一览
 
 ```
@@ -188,6 +233,9 @@ excise rollback <snapshot-id>      恢复某个快照
   --dry-run                         只显示差异，不写文件
   -y, --yes                         跳过最终确认
   --no-suggest                      v0.2 —— TUI 里跳过启发式预标记
+  --llm                             v0.3 —— 用本地 Ollama 对启发式短名单做重排
+  --llm-model NAME                  v0.3 —— 覆盖 excise.toml 里的 model（如 llama3.2）
+  --llm-host URL                    v0.3 —— 覆盖 excise.toml 里的 host
 
 suggest 专属参数：
   --top N                           最多显示 N 个候选（0 = 全部；默认 5）

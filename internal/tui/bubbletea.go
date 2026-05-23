@@ -28,6 +28,12 @@ var (
 	styleRoleT       = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	styleRoleS       = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	styleHelp        = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("241"))
+	styleLLMReason   = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("147")) // v0.3: pale lavender
+	styleLLMPanel    = lipgloss.NewStyle().
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(lipgloss.Color("147")).
+				Padding(0, 1).
+				MarginLeft(2)
 )
 
 func (tm teaModel) Init() tea.Cmd { return nil }
@@ -115,10 +121,33 @@ func (tm teaModel) View() string {
 		b.WriteString("\n")
 		b.WriteString(styleSuggestHint.Render("◆ suggested — press space to uncheck"))
 	}
+	// v0.3 sidebar: if the cursor sits on a turn that the LLM rerank
+	// annotated, show the one-line reason. Stays out of the way when no
+	// --llm was passed (LLMReasons is empty).
+	if panel := renderLLMSidebar(m); panel != "" {
+		b.WriteString("\n")
+		b.WriteString(panel)
+	}
 	b.WriteString("\n")
 	b.WriteString(styleHelp.Render("[j/k] move  [space/x] mark  [d] mark+next  [g/G] top/bot  [enter] commit  [q] abort"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// renderLLMSidebar returns the boxed rationale for whichever turn the
+// cursor is on. Empty string means "render nothing" — caller is expected
+// to skip the surrounding separator in that case.
+func renderLLMSidebar(m *Model) string {
+	if len(m.LLMReasons) == 0 || len(m.Turns) == 0 {
+		return ""
+	}
+	id := m.Turns[m.Cursor].ID
+	reason, ok := m.LLMReasons[id]
+	if !ok || reason == "" {
+		return ""
+	}
+	body := styleLLMReason.Render("LLM: " + reason)
+	return styleLLMPanel.Render(body)
 }
 
 func hasAnyPreMarked(m *Model) bool {
@@ -153,7 +182,15 @@ func RunBubbletea(s *session.Session) (*Model, error) {
 // RunBubbleteaWithPreMarked is the v0.2 entry point — same as RunBubbletea
 // but seeds the picker's marked set from the supplied turn ids.
 func RunBubbleteaWithPreMarked(s *session.Session, preMarked []string) (*Model, error) {
-	m := NewModelWithPreMarked(s, preMarked)
+	return RunBubbleteaWithReasons(s, preMarked, nil)
+}
+
+// RunBubbleteaWithReasons is the v0.3 entry point. It additionally renders
+// a per-turn LLM rationale in a side panel when the cursor is on a turn
+// that the rerank annotated. Passing reasons=nil is identical to the v0.2
+// behavior.
+func RunBubbleteaWithReasons(s *session.Session, preMarked []string, reasons map[string]string) (*Model, error) {
+	m := NewModelWithReasons(s, preMarked, reasons)
 	p := tea.NewProgram(teaModel{M: m})
 	if _, err := p.Run(); err != nil {
 		return nil, err

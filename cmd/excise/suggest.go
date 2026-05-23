@@ -48,12 +48,16 @@ Five heuristics contribute to each turn's score:
 			if err != nil {
 				return err
 			}
-			scores := suggest.Score(s)
-			top := suggest.TopK(scores, sf.top, sf.minScore)
-			if sf.asJSON {
-				return emitSuggestJSON(os.Stdout, top)
+			ctx, cancel := rerankBackgroundContext()
+			defer cancel()
+			res, err := rankCandidates(ctx, gf, s, sf.top, sf.minScore, os.Stderr)
+			if err != nil {
+				return err
 			}
-			return emitSuggestTable(os.Stdout, s, top)
+			if sf.asJSON {
+				return emitSuggestJSON(os.Stdout, res.Picks)
+			}
+			return emitSuggestTable(os.Stdout, s, res)
 		},
 	}
 	cmd.Flags().IntVar(&sf.top, "top", 5, "show at most N suggestions (0 = all)")
@@ -62,8 +66,11 @@ Five heuristics contribute to each turn's score:
 	return cmd
 }
 
-// emitSuggestTable prints the table shown in plan §1.
-func emitSuggestTable(out *os.File, s *session.Session, picks []suggest.TurnScore) error {
+// emitSuggestTable prints the table shown in plan §1. When the rank result
+// carries LLM reasons (v0.3 `--llm` path), a per-row `llm_reason` column
+// is appended; otherwise the v0.2 layout is preserved bit-for-bit.
+func emitSuggestTable(out *os.File, s *session.Session, res *rankResult) error {
+	picks := res.Picks
 	fmt.Fprintf(out, "session: %s (%s)\n", s.SessionID, s.Tool)
 	fmt.Fprintf(out, "source : %s\n", s.SourcePath)
 	fmt.Fprintf(out, "turns  : %d\n\n", len(s.Turns))
@@ -71,22 +78,65 @@ func emitSuggestTable(out *os.File, s *session.Session, picks []suggest.TurnScor
 		fmt.Fprintln(out, "(no candidates surfaced by the heuristic engine)")
 		return nil
 	}
-	fmt.Fprintf(out, "%-4s  %-9s  %-7s  %-50s  %s\n",
-		"#", "role", "tokens", "heuristic", "preview")
-	fmt.Fprintln(out, strings.Repeat("-", 110))
+
+	hasLLM := res.UsedLLM && anyLLMReason(picks)
+	if hasLLM {
+		fmt.Fprintf(out, "%-4s  %-9s  %-7s  %-36s  %s\n",
+			"#", "role", "tokens", "heuristic", "llm_reason")
+		fmt.Fprintln(out, strings.Repeat("-", 110))
+	} else {
+		fmt.Fprintf(out, "%-4s  %-9s  %-7s  %-50s  %s\n",
+			"#", "role", "tokens", "heuristic", "preview")
+		fmt.Fprintln(out, strings.Repeat("-", 110))
+	}
+
 	total := 0
 	for _, p := range picks {
 		preview := truncateUTF8(p.Preview, 40)
 		if preview == "" {
 			preview = "(empty)"
 		}
-		fmt.Fprintf(out, "%-4d  %-9s  %-7d  %-50s  %s\n",
-			p.Index, p.Role, p.Tokens, truncateUTF8(suggest.TriggerSummary(p), 50), preview)
+		if hasLLM {
+			reason := p.LLMReason
+			if reason == "" {
+				reason = "(no LLM verdict — heuristic kept)"
+			}
+			fmt.Fprintf(out, "%-4d  %-9s  %-7d  %-36s  %s\n",
+				p.Index, p.Role, p.Tokens,
+				truncateUTF8(suggest.TriggerSummary(p), 36),
+				truncateUTF8(reason, 56))
+		} else {
+			fmt.Fprintf(out, "%-4d  %-9s  %-7d  %-50s  %s\n",
+				p.Index, p.Role, p.Tokens,
+				truncateUTF8(suggest.TriggerSummary(p), 50),
+				preview)
+		}
 		total += p.Tokens
 	}
-	fmt.Fprintf(out, "\n%d candidate(s) totalling ~%d tokens. Run `excise pick` to review interactively.\n",
-		len(picks), total)
+
+	switch {
+	case hasLLM:
+		fmt.Fprintf(out, "\n%d candidate(s) reranked by ollama:%s (host=%s).\n",
+			len(picks), res.Model, res.Host)
+		fmt.Fprintln(out, "Run `excise pick --llm` to review interactively.")
+	case res.Fallback:
+		fmt.Fprintf(out, "\n%d candidate(s) totalling ~%d tokens (LLM unavailable — heuristic shown).\n",
+			len(picks), total)
+		fmt.Fprintln(out, "Run `excise pick` to review interactively.")
+	default:
+		fmt.Fprintf(out, "\n%d candidate(s) totalling ~%d tokens. Run `excise pick` to review interactively.\n",
+			len(picks), total)
+	}
 	return nil
+}
+
+func anyLLMReason(picks []suggest.TurnScore) bool {
+	for _, p := range picks {
+		if p.LLMReason != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func emitSuggestJSON(out *os.File, picks []suggest.TurnScore) error {

@@ -121,3 +121,52 @@ go build -o /tmp/excise ./cmd/excise
 ```
 
 If any of those three commands errors, do NOT cut the release.
+
+---
+
+## v0.3.0 — opt-in LLM rerank (Ollama)
+
+v0.3 adds `--llm` which routes the heuristic shortlist through a local Ollama
+model. Setting it up is opt-in — Excise still works fully without it.
+
+1. Install Ollama (https://ollama.com) and pull a small model:
+
+    ```bash
+    ollama pull llama3.2     # ~2 GB; any chat-capable model works
+    ```
+
+2. (Optional) Drop an `excise.toml` somewhere on the discovery path
+   (`./excise.toml` → `$XDG_CONFIG_HOME/excise/excise.toml` →
+   `~/.config/excise/excise.toml`):
+
+    ```toml
+    [llm]
+    host = "http://localhost:11434"
+    model = "llama3.2"
+    top_n = 5
+    timeout_sec = 20
+    ```
+
+3. Smoke-test the fallback path (with Ollama **off** — should print a stderr
+   warning and exit 0):
+
+    ```bash
+    /tmp/excise suggest --llm testdata/claude_session_polluted.jsonl
+    # expect: "[excise] LLM unavailable (...) — falling back to heuristic ranking"
+    ```
+
+4. Smoke-test the happy path (with Ollama **on**):
+
+    ```bash
+    ollama serve &
+    /tmp/excise suggest --llm testdata/claude_session_llm_rerank.jsonl
+    # expect: reordered table with llm_reason column populated
+    ```
+
+5. Live integration test (CI does NOT run this by default):
+
+    ```bash
+    EXCISE_LIVE_OLLAMA=1 go test ./...
+    ```
+
+Remote API-key backends (OpenAI / Anthropic / OpenRouter) are deferred to v0.4.

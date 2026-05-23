@@ -5,6 +5,43 @@ All notable changes to **Excise** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-05-23
+
+### Added
+- **Opt-in LLM rerank via local Ollama** (`--llm`). Layers a local model on
+  top of the v0.2 heuristic shortlist: heuristic stays the cheap pre-filter,
+  LLM only judges that shortlist and writes a one-line reason per turn.
+- New flags `--llm`, `--llm-model`, `--llm-host` on both `suggest` and `pick`.
+- New optional config file `excise.toml` (`./excise.toml` → `$XDG_CONFIG_HOME/excise/`
+  → `~/.config/excise/`) with `[llm]` block: `host`, `model`, `top_n`, `timeout_sec`.
+- `internal/llm/` package (tiny Ollama HTTP client + rerank logic + hard-coded
+  prompt template) and `internal/config/` package (TOML loader with sane defaults).
+- New testdata `claude_session_llm_rerank.jsonl` + cmd-level tests for the
+  happy path, fallback path, and JSON-parse-failure path against a stubbed
+  `Reranker`. Live-Ollama integration test gated behind `EXCISE_LIVE_OLLAMA=1`.
+
+### Changed
+- `suggest` and `pick` route the heuristic shortlist through the LLM reranker
+  when `--llm` is set. Exit codes unchanged: 0 on success (incl. graceful
+  fallback), 2 only on usage error.
+- TUI shows per-turn `LLMReason` next to pre-marked turns when present.
+
+### Fixed
+- Test helper `NewStubReranker` was originally placed in `_test.go` (invisible
+  across packages); moved to `internal/llm/stub.go` so cmd-level tests resolve.
+- `go.sum` regenerated to match real `BurntSushi/toml@v1.4.0` checksum.
+
+### Trust contract (unchanged from v0.1/v0.2)
+- No outbound network beyond the user-configured Ollama host.
+- No autocut. `--llm` only changes ranking; user still confirms every excision.
+- No telemetry, no acceptance log, no cross-session learning.
+
+### Still out of scope
+- Remote LLM API key backends (OpenAI / Anthropic / OpenRouter) — deferred to v0.4.
+- Streaming LLM output / partial-rerank UI.
+- LLM + autocut combination.
+- User-editable prompt template.
+
 ## [0.2.0] — 2026-05-18
 
 Adds the heuristic **suggestion engine** — Excise now nominates the top-K
