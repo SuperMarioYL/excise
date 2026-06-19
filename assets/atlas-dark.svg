@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 360" width="880" height="360"
+     font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+     role="img" aria-label="Excise architecture: a poisoned session JSONL on disk is loaded by the session layer, scored by the heuristic suggestion engine with optional local-Ollama rerank, marked in the TUI picker, closed over the tool_use to tool_result dependency graph, then written back atomically with a snapshot guard">
+  <defs>
+    <marker id="ah-d" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5A5A66"/></marker>
+  </defs>
+  <rect x="0" y="0" width="880" height="360" fill="#1D1D1F"/>
+
+  <!-- single-binary frame -->
+  <rect x="232" y="60" width="500" height="276" rx="18" fill="none" stroke="#8985FF" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="252" y="82" font-size="13" font-weight="600" fill="#A6A2FF">one static binary · no daemon · no network</text>
+
+  <!-- connectors -->
+  <g stroke="#3A3A44" stroke-width="1.6" fill="none">
+    <line x1="206" y1="198" x2="248" y2="198" marker-end="url(#ah-d)"/>
+    <line x1="404" y1="198" x2="446" y2="198" marker-end="url(#ah-d)"/>
+    <line x1="558" y1="198" x2="600" y2="198" marker-end="url(#ah-d)"/>
+    <line x1="716" y1="198" x2="758" y2="198" marker-end="url(#ah-d)"/>
+  </g>
+
+  <!-- On-disk session (input) -->
+  <g>
+    <rect x="36" y="118" width="170" height="160" rx="15" fill="#94A3B8" fill-opacity="0.10" stroke="#94A3B8" stroke-width="1.5"/>
+    <text x="121" y="144" text-anchor="middle" font-size="14" font-weight="600" fill="#CBD5E1">Session on disk</text>
+    <g font-size="11" fill="#CBD5E1">
+      <rect x="52" y="158" width="138" height="32" rx="8" fill="#94A3B8" fill-opacity="0.08" stroke="#94A3B8" stroke-width="1.1"/>
+      <text x="64" y="178">Claude .jsonl</text>
+      <rect x="52" y="196" width="138" height="32" rx="8" fill="#94A3B8" fill-opacity="0.08" stroke="#94A3B8" stroke-width="1.1"/>
+      <text x="64" y="216">Cursor state.vscdb</text>
+      <rect x="52" y="234" width="138" height="30" rx="8" fill="#F2B705" fill-opacity="0.16" stroke="#F2B705" stroke-width="1.1"/>
+      <text x="64" y="253" fill="#F2C95B">poisoned turns ✗</text>
+    </g>
+  </g>
+
+  <!-- Session layer (load + dependency graph) -->
+  <g>
+    <rect x="248" y="100" width="156" height="196" rx="15" fill="#8985FF" fill-opacity="0.16" stroke="#8985FF" stroke-width="1.5"/>
+    <text x="326" y="124" text-anchor="middle" font-size="14" font-weight="600" fill="#A6A2FF">session</text>
+    <g font-size="11" fill="#A6A2FF">
+      <rect x="262" y="136" width="128" height="30" rx="8" fill="#8985FF" fill-opacity="0.10" stroke="#8985FF" stroke-width="1.1"/>
+      <text x="273" y="155">loader · auto-detect</text>
+      <rect x="262" y="172" width="128" height="30" rx="8" fill="#8985FF" fill-opacity="0.10" stroke="#8985FF" stroke-width="1.1"/>
+      <text x="273" y="191">claude / cursor</text>
+      <rect x="262" y="208" width="128" height="30" rx="8" fill="#8985FF" fill-opacity="0.10" stroke="#8985FF" stroke-width="1.1"/>
+      <text x="273" y="227">dependency graph</text>
+      <rect x="262" y="244" width="128" height="38" rx="8" fill="#8985FF" fill-opacity="0.10" stroke="#8985FF" stroke-width="1.1"/>
+      <text x="273" y="259">tool_use ↔</text>
+      <text x="273" y="274">tool_result pairs</text>
+    </g>
+  </g>
+
+  <!-- Suggest pipeline -->
+  <g>
+    <rect x="446" y="100" width="112" height="196" rx="15" fill="#8985FF" fill-opacity="0.16" stroke="#8985FF" stroke-width="1.5"/>
+    <text x="502" y="124" text-anchor="middle" font-size="14" font-weight="600" fill="#A6A2FF">suggest</text>
+    <g font-size="10.5" fill="#A6A2FF">
+      <rect x="458" y="136" width="88" height="62" rx="8" fill="#8985FF" fill-opacity="0.10" stroke="#8985FF" stroke-width="1.1"/>
+      <text x="468" y="154" font-weight="600">heuristics</text>
+      <text x="468" y="170">5 triggers</text>
+      <text x="468" y="186">pure stdlib</text>
+      <rect x="458" y="204" width="88" height="78" rx="8" fill="#2DC79A" fill-opacity="0.12" stroke="#2DC79A" stroke-width="1.1"/>
+      <text x="468" y="222" font-weight="600" fill="#5BE0BC">LLM rerank</text>
+      <text x="468" y="238" fill="#5BE0BC">opt-in</text>
+      <text x="468" y="254" fill="#5BE0BC">local Ollama</text>
+      <text x="468" y="272" fill="#5BE0BC">--llm</text>
+    </g>
+  </g>
+
+  <!-- TUI picker -->
+  <g>
+    <rect x="600" y="118" width="116" height="160" rx="15" fill="#8985FF" fill-opacity="0.20" stroke="#8985FF" stroke-width="1.6"/>
+    <text x="658" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#A6A2FF">tui picker</text>
+    <g font-size="10.5" fill="#A6A2FF">
+      <rect x="612" y="158" width="92" height="30" rx="8" fill="#8985FF" fill-opacity="0.10" stroke="#8985FF" stroke-width="1.1"/>
+      <text x="622" y="177">◆ pre-marked</text>
+      <rect x="612" y="194" width="92" height="30" rx="8" fill="#8985FF" fill-opacity="0.10" stroke="#8985FF" stroke-width="1.1"/>
+      <text x="622" y="213">space toggle</text>
+      <rect x="612" y="230" width="92" height="34" rx="8" fill="#F2B705" fill-opacity="0.16" stroke="#F2B705" stroke-width="1.1"/>
+      <text x="622" y="251" fill="#F2C95B">enter = cut</text>
+    </g>
+  </g>
+
+  <!-- Safety + write-back (output) -->
+  <g>
+    <rect x="758" y="118" width="92" height="160" rx="15" fill="#2DC79A" fill-opacity="0.10" stroke="#2DC79A" stroke-width="1.5"/>
+    <text x="804" y="144" text-anchor="middle" font-size="13" font-weight="600" fill="#5BE0BC">safety</text>
+    <g font-size="10" fill="#5BE0BC">
+      <rect x="768" y="158" width="72" height="34" rx="8" fill="#2DC79A" fill-opacity="0.12" stroke="#2DC79A" stroke-width="1.1"/>
+      <text x="778" y="172">snapshot</text>
+      <text x="778" y="186">.gz</text>
+      <rect x="768" y="198" width="72" height="34" rx="8" fill="#2DC79A" fill-opacity="0.12" stroke="#2DC79A" stroke-width="1.1"/>
+      <text x="778" y="212">atomic</text>
+      <text x="778" y="226">rewrite</text>
+      <rect x="768" y="238" width="72" height="30" rx="8" fill="#2DC79A" fill-opacity="0.12" stroke="#2DC79A" stroke-width="1.1"/>
+      <text x="778" y="257">rollback</text>
+    </g>
+  </g>
+</svg>

@@ -295,28 +295,32 @@ Linux: `apt install sqlite3`. The Cursor writer deliberately refuses to mutate
 `state.vscdb` while Cursor is running — v0.2 will add a "Cursor must be
 closed" guard and a direct write path.
 
-## Architecture
+## <img src="https://api.iconify.design/tabler:topology-star-3.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Architecture
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/atlas-light.svg">
+    <img src="./assets/atlas-light.svg" width="880" alt="A poisoned session JSONL on disk is loaded by the session layer, scored by the heuristic suggestion engine with optional local-Ollama rerank, marked in the TUI picker, closed over the tool_use ↔ tool_result dependency graph, then written back atomically with a snapshot guard">
+  </picture>
+</p>
+
+A polluted **session on disk** (Claude `.jsonl` or Cursor `state.vscdb`) is read by the **`session`** layer, which auto-detects the format and builds the `tool_use ↔ tool_result` dependency graph. The **`suggest`** pipeline scores every turn with five pure-stdlib heuristics — and, only when you pass `--llm`, reranks the shortlist through a local Ollama model. Candidates are pre-marked in the **TUI picker** where you confirm the cut; **`safety`** then snapshots the file (gzip), rewrites it atomically, and keeps a rollback path. Everything runs in one static binary — no daemon, no network.
 
 ```
-┌────────────────────────────┐
-│  cmd/excise/main.go        │  cobra CLI: excise [pick|list|cut|rollback]
-└────────────┬───────────────┘
-             │
-   ┌─────────┴────────────────────────────┐
-   ▼                                      ▼
-internal/session                     internal/tui
-  loader.go      Tool / Turn model     model.go   pure state + token math
-  claude.go      Claude JSONL          picker.go  hand-rolled stdin driver
-  cursor.go      Cursor sqlite+jsonl   bubbletea.go  real terminal UI
-  dependency.go  tool-call graph       diff.go    before/after summary
-  writer.go      WriterFor() dispatch
-                    │
-                    ▼
-            internal/safety
-              backup.go    snapshot + edit_log + rollback
+internal/session   loader · claude · cursor · dependency · writer
+internal/suggest   heuristics (5 triggers) · scorer · lexicon
+internal/llm       opt-in Ollama rerank (--llm)
+internal/tui       bubbletea picker · diff · model
+internal/safety    snapshot + edit_log + rollback
 ```
 
-One binary, no daemon, no IPC.
+## <img src="https://api.iconify.design/tabler:photo.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Demo
+
+`excise list` → `excise suggest` → a dependency-aware `excise cut` against a
+poisoned Claude Code session, rendered from `docs/demo.tape`:
+
+![excise demo — list a poisoned session, let the heuristics nominate turns, then cut a range with dependency-aware pull-in](assets/demo.gif)
 
 ## Roadmap
 

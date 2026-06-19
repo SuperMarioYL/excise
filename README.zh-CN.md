@@ -281,28 +281,32 @@ Excise 用 `tool_use.id ↔ tool_result.tool_use_id` 把这层边构造成一张
 `apt install sqlite3`。Cursor 写路径在 v0.1 故意拒绝直接修改
 `state.vscdb`，v0.2 会加上 "Cursor 必须关闭" 的守卫并提供直接写入。
 
-## 架构
+## <img src="https://api.iconify.design/tabler:topology-star-3.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> 架构
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/atlas-light.svg">
+    <img src="./assets/atlas-light.svg" width="880" alt="磁盘上被污染的会话 JSONL 由 session 层加载，经启发式建议引擎打分（可选本地 Ollama 重排），在 TUI 中标记，沿 tool_use ↔ tool_result 依赖图做闭包，再带快照保护原子写回">
+  </picture>
+</p>
+
+磁盘上被污染的**会话文件**（Claude `.jsonl` 或 Cursor `state.vscdb`）先由 **`session`** 层读取，自动识别格式并构建 `tool_use ↔ tool_result` 依赖图。**`suggest`** 流水线用五条纯标准库启发式为每个 turn 打分——只有当你显式加 `--llm` 时，才会把候选短名单交给本地 Ollama 模型重排。候选项在 **TUI 选择器**中预标记，由你确认切除；随后 **`safety`** 给文件做快照（gzip）、原子写回，并保留回滚路径。全程跑在一个静态二进制里——没有守护进程，也不联网。
 
 ```
-┌────────────────────────────┐
-│  cmd/excise/main.go        │  cobra CLI: excise [pick|list|cut|rollback]
-└────────────┬───────────────┘
-             │
-   ┌─────────┴────────────────────────────┐
-   ▼                                      ▼
-internal/session                     internal/tui
-  loader.go      Tool / Turn 模型       model.go   纯状态机 + token 计算
-  claude.go      Claude JSONL          picker.go  手写 stdin 驱动
-  cursor.go      Cursor sqlite+jsonl   bubbletea.go  真正的终端 UI
-  dependency.go  工具调用图             diff.go    前后对比摘要
-  writer.go      WriterFor() 分派
-                    │
-                    ▼
-            internal/safety
-              backup.go    快照 + edit_log + 回滚
+internal/session   loader · claude · cursor · dependency · writer
+internal/suggest   启发式（5 个触发器）· scorer · lexicon
+internal/llm       可选 Ollama 重排（--llm）
+internal/tui       bubbletea 选择器 · diff · model
+internal/safety    快照 + edit_log + 回滚
 ```
 
-一个二进制，没有守护进程，没有 IPC。
+## <img src="https://api.iconify.design/tabler:photo.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> 演示
+
+`excise list` → `excise suggest` → 对一个被污染的 Claude Code 会话执行依赖感知的
+`excise cut`，由 `docs/demo.tape` 渲染：
+
+![excise 演示 —— 列出被污染的会话、由启发式提名待切 turn，再做带依赖感知拉取的范围切除](assets/demo.gif)
 
 ## 路线图
 

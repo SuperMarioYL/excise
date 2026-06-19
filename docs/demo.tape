@@ -1,36 +1,35 @@
-# vhs tape — regenerate the headline asciinema with:
-#   vhs docs/demo.tape  (produces docs/demo.gif)
-#   asciinema rec docs/demo.cast -c "scripts/demo.sh"
-#
+# vhs tape — Excise happy path.
+# Render in CI via .github/workflows/demo.yml, or locally:
+#   vhs docs/demo.tape   (needs the `excise` binary on PATH)
 # vhs install: https://github.com/charmbracelet/vhs
+Output assets/demo.gif
 
-Output docs/demo.gif
-
-Set Theme "Catppuccin Mocha"
+Set Shell "bash"
 Set FontFamily "JetBrains Mono"
 Set FontSize 16
 Set Width 1200
-Set Height 700
+Set Height 720
+Set Theme "Catppuccin Mocha"
 Set Padding 18
-Set TypingSpeed 30ms
+Set TypingSpeed 28ms
 
-Type "excise"
+Type "# 1) Inspect a poisoned Claude Code session — read-only"
 Enter
-Sleep 800ms
-
-# pretend the picker is open; tap down a few times
-Down 4
-Sleep 300ms
-Space@1s
-
-Down 1
-Space@1s
-Down 1
-Space@1s
-
-Sleep 1s
-Enter            # commit
-Sleep 200ms
-Type "y"
+Sleep 600ms
+Type "excise list testdata/claude_session_polluted.jsonl"
 Enter
-Sleep 1.5s
+Sleep 2.5s
+
+Type "# 2) Let the heuristic engine nominate the turns to cut"
+Enter
+Sleep 600ms
+Type "excise suggest --top=5 testdata/claude_session_polluted.jsonl"
+Enter
+Sleep 3s
+
+Type "# 3) Cut a range — snapshot first, then atomic write (dry-run here)"
+Enter
+Sleep 600ms
+Type "excise cut 17,19,32 --dry-run testdata/claude_session_polluted.jsonl"
+Enter
+Sleep 3s
