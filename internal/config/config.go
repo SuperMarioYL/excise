@@ -30,14 +30,57 @@ const (
 	DefaultLLMModel      = "llama3.2"
 	DefaultLLMTopN       = 5
 	DefaultLLMTimeoutSec = 20
+	DefaultLLMBackend    = "ollama"
 )
 
-// LLM holds the Ollama-side knobs.
+// Backend identifiers for the [llm].backend field.
+const (
+	BackendOllama = "ollama"
+	BackendRemote = "remote"
+)
+
+// Known remote providers. OpenRouter speaks the OpenAI-compatible
+// chat/completions shape, so it shares the OpenAI request/response path.
+const (
+	ProviderOpenAI     = "openai"
+	ProviderAnthropic  = "anthropic"
+	ProviderOpenRouter = "openrouter"
+)
+
+// LLM holds the rerank-backend knobs. Fields prefixed in comments with
+// (v0.3) are the original Ollama-only set; the rest are the v0.4 remote
+// backend additions. The default backend stays "ollama" (local-only) so
+// behaviour is bit-identical to v0.3 unless the user opts in.
 type LLM struct {
-	Host       string `toml:"host"`
-	Model      string `toml:"model"`
-	TopN       int    `toml:"top_n"`
-	TimeoutSec int    `toml:"timeout_sec"`
+	Host       string `toml:"host"`        // (v0.3) Ollama base URL
+	Model      string `toml:"model"`       // model tag (Ollama) or model id (remote)
+	TopN       int    `toml:"top_n"`       // (v0.3) LLM shortlist size
+	TimeoutSec int    `toml:"timeout_sec"` // (v0.3) per-call timeout
+
+	// v0.4 remote backend.
+	Backend   string `toml:"backend"`     // ollama | remote (default ollama)
+	Provider  string `toml:"provider"`    // openai | anthropic | openrouter
+	APIKey    string `toml:"api_key"`     // inline key (prefer api_key_env)
+	APIKeyEnv string `toml:"api_key_env"` // env var holding the key
+	BaseURL   string `toml:"base_url"`    // override the provider's default host
+}
+
+// ResolveAPIKey returns the effective API key for a remote backend: the
+// inline api_key if set, otherwise the value of the api_key_env variable.
+// Empty when neither resolves.
+func (l LLM) ResolveAPIKey() string {
+	if l.APIKey != "" {
+		return l.APIKey
+	}
+	if l.APIKeyEnv != "" {
+		return os.Getenv(l.APIKeyEnv)
+	}
+	return ""
+}
+
+// IsRemote reports whether the resolved backend is the remote one.
+func (l LLM) IsRemote() bool {
+	return l.Backend == BackendRemote
 }
 
 // Config mirrors the top-level structure of excise.toml. Additional sections
@@ -58,6 +101,7 @@ func Default() *Config {
 			Model:      DefaultLLMModel,
 			TopN:       DefaultLLMTopN,
 			TimeoutSec: DefaultLLMTimeoutSec,
+			Backend:    DefaultLLMBackend,
 		},
 	}
 }
@@ -111,6 +155,21 @@ func load(path string) (*Config, error) {
 	if overlay.LLM.TimeoutSec > 0 {
 		cfg.LLM.TimeoutSec = overlay.LLM.TimeoutSec
 	}
+	if overlay.LLM.Backend != "" {
+		cfg.LLM.Backend = overlay.LLM.Backend
+	}
+	if overlay.LLM.Provider != "" {
+		cfg.LLM.Provider = overlay.LLM.Provider
+	}
+	if overlay.LLM.APIKey != "" {
+		cfg.LLM.APIKey = overlay.LLM.APIKey
+	}
+	if overlay.LLM.APIKeyEnv != "" {
+		cfg.LLM.APIKeyEnv = overlay.LLM.APIKeyEnv
+	}
+	if overlay.LLM.BaseURL != "" {
+		cfg.LLM.BaseURL = overlay.LLM.BaseURL
+	}
 	cfg.SourcePath = path
 
 	if err := cfg.Validate(); err != nil {
@@ -119,11 +178,46 @@ func load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// Validate checks fields that must be well-formed. Currently only the host.
+// Validate checks fields that must be well-formed.
+//
+//   - The Ollama host must always parse as an absolute URL (it has a default,
+//     so this only catches a genuinely malformed override).
+//   - backend must be "ollama" or "remote".
+//   - When backend=remote: the provider must be a known one, a key must be
+//     resolvable (inline api_key or via api_key_env), and base_url — if set —
+//     must be an absolute URL.
 func (c *Config) Validate() error {
 	u, err := url.Parse(c.LLM.Host)
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return fmt.Errorf("config: invalid llm.host %q (expected e.g. http://localhost:11434)", c.LLM.Host)
+	}
+
+	switch c.LLM.Backend {
+	case "", BackendOllama:
+		// local path; nothing more to check.
+	case BackendRemote:
+		switch c.LLM.Provider {
+		case ProviderOpenAI, ProviderAnthropic, ProviderOpenRouter:
+			// ok
+		case "":
+			return fmt.Errorf("config: llm.backend=remote requires llm.provider (one of openai|anthropic|openrouter)")
+		default:
+			return fmt.Errorf("config: unknown llm.provider %q (expected openai|anthropic|openrouter)", c.LLM.Provider)
+		}
+		if c.LLM.ResolveAPIKey() == "" {
+			if c.LLM.APIKeyEnv != "" {
+				return fmt.Errorf("config: llm.backend=remote: env %s is empty (set the key or use inline api_key)", c.LLM.APIKeyEnv)
+			}
+			return fmt.Errorf("config: llm.backend=remote requires an api_key (inline) or api_key_env")
+		}
+		if c.LLM.BaseURL != "" {
+			bu, err := url.Parse(c.LLM.BaseURL)
+			if err != nil || bu.Scheme == "" || bu.Host == "" {
+				return fmt.Errorf("config: invalid llm.base_url %q (expected e.g. https://api.openai.com)", c.LLM.BaseURL)
+			}
+		}
+	default:
+		return fmt.Errorf("config: unknown llm.backend %q (expected ollama|remote)", c.LLM.Backend)
 	}
 	return nil
 }

@@ -223,7 +223,31 @@ times out, or the response is malformed, Excise prints one line to stderr —
 - **No telemetry, no acceptance log, no cross-session learning.** Same posture
   as v0.1/v0.2.
 
-Remote API-key backends (OpenAI / Anthropic / OpenRouter) are deferred to v0.4.
+### Remote backend (v0.4, opt-in)
+
+As of v0.4 you can point the reranker at a remote provider instead of local
+Ollama. The trust premise is preserved by being **explicit and opt-in**:
+
+- The default backend stays `ollama` (local-only). A remote call happens **only**
+  when you set `backend = "remote"` **and** supply a key.
+- On every remote call the destination host is echoed to stderr — an outbound
+  call is never silent.
+- Same graceful fallback as the Ollama path: on auth failure / timeout /
+  unreachable host, `excise` prints a one-line stderr warning and falls back to
+  the heuristic ranking (exit 0).
+
+```toml
+[llm]
+backend  = "remote"            # ollama (default) | remote
+provider = "openai"            # openai | anthropic | openrouter
+model    = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY" # prefer an env var over an inline api_key
+# base_url = "https://api.openai.com"   # optional host override
+```
+
+CLI overrides `--llm-backend` and `--llm-provider` take precedence over the
+config block. A live remote integration test exists but is gated behind
+`EXCISE_LIVE_REMOTE=1` (CI never calls a real provider).
 
 ## Commands
 
@@ -324,11 +348,13 @@ poisoned Claude Code session, rendered from `docs/demo.tape`:
 
 ## Roadmap
 
-- **v0.2** ✅ — heuristic suggestion engine + TUI pre-mark (this release).
-- **v0.3** — direct `state.vscdb` writes with a "Cursor closed?" guard; opt-in
-  LLM-assisted suggestions as a plugin (local Ollama / user-supplied API key).
-- **v0.4** — Codex / Aider / Cline support behind the same primitive.
-- **v0.5** — `excise grep <regex>` to mark by content match.
+- **v0.2** ✅ — heuristic suggestion engine + TUI pre-mark.
+- **v0.3** ✅ — Cursor `state.vscdb` read + sidecar cut; opt-in LLM rerank via
+  local Ollama.
+- **v0.4** ✅ — opt-in **remote** rerank backend (OpenAI / Anthropic /
+  OpenRouter) behind the same `Reranker` primitive (this release).
+- **v0.5** — Codex / Aider / Cline support behind the same primitive.
+- **v0.6** — `excise grep <regex>` to mark by content match.
 - **v0.6** — a "session debugger" sidecar that lets you inspect tool-call
   graphs without cutting anything.
 
@@ -338,9 +364,10 @@ poisoned Claude Code session, rendered from `docs/demo.tape`:
 - Auto-**cutting** turns. v0.2 only **suggests** (pure-stdlib heuristics,
   zero network); you still press `enter` to commit. `excise autocut` is
   explicitly never going to ship.
-- LLM-assisted suggestions of any kind (local Ollama / user-supplied API
-  key / hosted endpoint). All deferred to v0.3 as opt-in plugins so the
-  v0.2 binary signature and trust premise stay put.
+- **Default** outbound network. LLM-assisted suggestions ship as strictly
+  **opt-in** layers — local Ollama since v0.3, a user-supplied remote API key
+  since v0.4 — so the zero-network default and trust premise stay put. Nothing
+  reaches the network unless you turn it on and supply your own endpoint/key.
 - Prompt-cache reconciliation. Editing invalidates the cache; you accept the
   cost.
 - A Claude Code plugin. We operate on the on-disk file between sessions.

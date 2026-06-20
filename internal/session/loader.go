@@ -63,8 +63,8 @@ type ToolResult struct {
 // so writer.go can re-emit untouched bytes for surviving turns and avoid
 // lossy round-trips through our model.
 type Turn struct {
-	ID          string       // stable id (Claude uuid; Cursor bubbleId)
-	ParentID    string       // parentUuid / parentBubbleId, "" if root
+	ID          string // stable id (Claude uuid; Cursor bubbleId)
+	ParentID    string // parentUuid / parentBubbleId, "" if root
 	Role        Role
 	Timestamp   time.Time
 	Preview     string       // first ~120 chars of textual content
@@ -79,9 +79,9 @@ type Turn struct {
 // back to disk in the same format it was loaded from.
 type Session struct {
 	Tool       Tool
-	SourcePath string  // file path (Claude) or sqlite path (Cursor)
-	ComposerID string  // Cursor only: bubble group id
-	SessionID  string  // Claude only: session uuid; Cursor: composer uuid
+	SourcePath string // file path (Claude) or sqlite path (Cursor)
+	ComposerID string // Cursor only: bubble group id
+	SessionID  string // Claude only: session uuid; Cursor: composer uuid
 	Turns      []Turn
 }
 
@@ -219,8 +219,11 @@ func previewText(s string) string {
 		}
 	}
 	out := strings.TrimSpace(b.String())
-	if len(out) >= 117 {
-		out = out[:117] + "..."
+	// Cap by rune count, not byte offset: byte-slicing a string that contains
+	// multibyte UTF-8 (common for the zh-CN-first user base) can split a rune
+	// and emit invalid UTF-8 into both the TUI and the Ollama rerank prompt.
+	if r := []rune(out); len(r) > 117 {
+		out = string(r[:117]) + "..."
 	}
 	return out
 }

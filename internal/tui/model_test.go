@@ -7,6 +7,24 @@ import (
 	"github.com/SuperMarioYL/excise/internal/session"
 )
 
+// TestTruncateRuneSafe locks in the v0.4 multibyte fix: truncating a long
+// zh-CN string must cut on a rune boundary, never mid-rune (which would render
+// a replacement glyph in the TUI).
+func TestTruncateRuneSafe(t *testing.T) {
+	long := strings.Repeat("汉", 100)
+	out := truncate(long, 20)
+	if r := []rune(out); len(r) > 20 {
+		t.Errorf("truncate kept %d runes, want <= 20", len(r))
+	}
+	if strings.ContainsRune(out, '�') {
+		t.Errorf("truncate produced a replacement rune (split a multibyte rune): %q", out)
+	}
+	// Short strings pass through untouched.
+	if got := truncate("汉字", 5); got != "汉字" {
+		t.Errorf("short string mutated: got %q", got)
+	}
+}
+
 func fakeSession() *session.Session {
 	return &session.Session{
 		Tool: session.ToolClaude,

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/SuperMarioYL/excise/internal/config"
@@ -22,8 +23,17 @@ import (
 )
 
 // rerankerFactory builds a Reranker from the resolved config. It is a var
-// so tests can replace it with a stub.
-var rerankerFactory func(*config.Config) llm.Reranker = ollamaRerankerFactory
+// so tests can replace it with a stub. It dispatches on cfg.LLM.Backend:
+// the default "ollama" path is bit-identical to v0.3; "remote" constructs a
+// RemoteReranker for the configured provider (v0.4).
+var rerankerFactory func(*config.Config) llm.Reranker = defaultRerankerFactory
+
+func defaultRerankerFactory(cfg *config.Config) llm.Reranker {
+	if cfg.LLM.IsRemote() {
+		return remoteRerankerFactory(cfg)
+	}
+	return ollamaRerankerFactory(cfg)
+}
 
 func ollamaRerankerFactory(cfg *config.Config) llm.Reranker {
 	client := llm.NewOllamaClient(
@@ -32,6 +42,18 @@ func ollamaRerankerFactory(cfg *config.Config) llm.Reranker {
 		time.Duration(cfg.LLM.TimeoutSec)*time.Second,
 	)
 	return llm.NewOllamaReranker(client)
+}
+
+func remoteRerankerFactory(cfg *config.Config) llm.Reranker {
+	client := llm.NewRemoteClient(llm.RemoteConfig{
+		Provider: cfg.LLM.Provider,
+		BaseURL:  cfg.LLM.BaseURL,
+		Model:    cfg.LLM.Model,
+		APIKey:   cfg.LLM.ResolveAPIKey(),
+		Timeout:  time.Duration(cfg.LLM.TimeoutSec) * time.Second,
+		Stderr:   os.Stderr,
+	})
+	return llm.NewRemoteReranker(client)
 }
 
 // rankResult is the union output of the heuristic+optional-LLM pipeline.
@@ -54,7 +76,8 @@ type rankResult struct {
 // pass os.Stderr in production. We don't write here so the caller controls
 // formatting and ordering relative to the rest of its output.
 func rankCandidates(ctx context.Context, gf *globalFlags, s *session.Session, top int, minScore float64, stderr io.Writer) (*rankResult, error) {
-	heur := suggest.TopK(suggest.Score(s), top, minScore)
+	scored := suggest.Score(s)
+	heur := suggest.TopK(scored, top, minScore)
 	res := &rankResult{Picks: heur}
 
 	if !gf.llm {
@@ -70,10 +93,32 @@ func rankCandidates(ctx context.Context, gf *globalFlags, s *session.Session, to
 	}
 	if gf.llmHost != "" {
 		cfg.LLM.Host = gf.llmHost
-		if vErr := cfg.Validate(); vErr != nil {
-			return res, vErr
-		}
 	}
+	// v0.4: backend/provider CLI overrides take precedence over the config.
+	if gf.llmBackend != "" {
+		cfg.LLM.Backend = gf.llmBackend
+	}
+	if gf.llmProvider != "" {
+		cfg.LLM.Provider = gf.llmProvider
+	}
+	// Re-validate after applying every override (host, backend, provider, key).
+	if vErr := cfg.Validate(); vErr != nil {
+		return res, vErr
+	}
+
+	// fix_llm_topn_ignored: when --llm is active, the documented [llm].top_n
+	// knob governs the LLM shortlist size. Previously the shortlist was sized
+	// from the CLI --top arg only, so top_n was a silent no-op. Prefer the
+	// larger of the CLI top and the configured top_n so neither is surprising.
+	llmTop := top
+	if cfg.LLM.TopN > llmTop {
+		llmTop = cfg.LLM.TopN
+	}
+	if llmTop != top {
+		heur = suggest.TopK(scored, llmTop, minScore)
+		res.Picks = heur
+	}
+
 	res.Model = cfg.LLM.Model
 	res.Host = cfg.LLM.Host
 	res.SourceConfig = cfg.SourcePath

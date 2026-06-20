@@ -196,13 +196,16 @@ func (m *Model) RenderList() string {
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	// Operate on runes, not bytes: byte-slicing a multibyte UTF-8 string (zh-CN)
+	// can split a rune and render replacement glyphs in the TUI.
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
 	if n < 3 {
-		return s[:n]
+		return string(r[:n])
 	}
-	return s[:n-1] + "…"
+	return string(r[:n-1]) + "…"
 }
 
 func humanK(n int) string {

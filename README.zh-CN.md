@@ -213,7 +213,28 @@ timeout_sec = 20
   显式 `excise cut <range>` 确认。
 - **不打点、不记接受日志、不跨会话学习。** 立场和 v0.1/v0.2 完全一样。
 
-远程 API key 后端（OpenAI / Anthropic / OpenRouter）推迟到 v0.4。
+### 远程后端（v0.4，按需开启）
+
+从 v0.4 起，你可以把重排后端指向远程厂商，而非本地 Ollama。信任前提通过
+**显式、按需开启**来保持：
+
+- 默认后端仍是 `ollama`（仅本地）。只有当你设置 `backend = "remote"`
+  **并且**提供了 key 时，才会发生远程调用。
+- 每次远程调用都会把目标 host 打到 stderr —— 外网调用永远不会静默发生。
+- 与 Ollama 路径相同的优雅降级：鉴权失败 / 超时 / host 不可达时，`excise`
+  打印一行 stderr 警告并回退到启发式排序（退出码 0）。
+
+```toml
+[llm]
+backend  = "remote"            # ollama（默认）| remote
+provider = "openai"            # openai | anthropic | openrouter
+model    = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY" # 推荐用环境变量，而非内联 api_key
+# base_url = "https://api.openai.com"   # 可选：覆盖默认 host
+```
+
+CLI 覆盖项 `--llm-backend` 和 `--llm-provider` 优先级高于配置块。已内置一个
+真实远程集成测试，但用 `EXCISE_LIVE_REMOTE=1` 门控（CI 永不调用真实厂商）。
 
 ## 命令一览
 
@@ -310,20 +331,21 @@ internal/safety    快照 + edit_log + 回滚
 
 ## 路线图
 
-- **v0.2** ✅ —— 启发式建议引擎 + TUI 预标记（即本版本）。
-- **v0.3** —— 直接写 `state.vscdb` + "Cursor 已关闭吗" 守卫；可选 LLM 辅助
-  建议插件（本地 Ollama / 用户自带 API key）。
-- **v0.4** —— Codex / Aider / Cline，共用同一套原语。
-- **v0.5** —— `excise grep <regex>`，按内容正则批量标记。
-- **v0.6** —— 一个 session 调试器 sidecar，让你只查看工具调用图、不做任何切除。
+- **v0.2** ✅ —— 启发式建议引擎 + TUI 预标记。
+- **v0.3** ✅ —— Cursor `state.vscdb` 读取 + sidecar 切除；可选本地 Ollama LLM 重排。
+- **v0.4** ✅ —— 可选**远程**重排后端（OpenAI / Anthropic / OpenRouter），
+  共用同一套 `Reranker` 原语（即本版本）。
+- **v0.5** —— Codex / Aider / Cline，共用同一套原语。
+- **v0.6** —— `excise grep <regex>`，按内容正则批量标记。
 
 ## 明确不做的事
 
 - Web UI 或托管服务。只做 CLI/TUI。
 - 自动**切**回合。我们只**建议**（v0.2 的 `excise suggest` 是纯启发式，零网络）；
   最终是否切，由你按 enter 决定。`excise autocut` 这条命令永远不会出现。
-- 任何形式的 LLM 调用（本地 Ollama / 自带 API key / 托管服务）。v0.3 才会
-  开放可选插件形态。
+- **默认**外网调用。LLM 辅助建议一律是**按需开启**的叠加层 —— v0.3 起支持
+  本地 Ollama，v0.4 起支持用户自带的远程 API key —— 默认零网络与信任前提
+  始终不变。除非你主动开启并提供自己的 endpoint/key，否则什么都不会发到网络。
 - Prompt cache 对齐。编辑会让缓存失效；你接受这个代价。
 - Claude Code 插件。我们只在两次会话之间动磁盘文件。
 - 云同步、账号系统、团队功能。

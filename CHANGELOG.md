@@ -5,6 +5,50 @@ All notable changes to **Excise** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-06-20
+
+### Added
+- **Opt-in remote LLM rerank backend** (OpenAI / Anthropic / OpenRouter).
+  Lifts the v0.3 deferral. New `internal/llm/remote.go` implements the existing
+  `Reranker` interface (a new package member, not a refactor), so the rerank
+  call site is unchanged — only transport + auth differ from the Ollama path.
+- `excise.toml` `[llm]` block gains `backend` (`ollama` | `remote`), `provider`
+  (`openai` | `anthropic` | `openrouter`), `api_key` / `api_key_env`, and
+  `base_url`. New CLI overrides `--llm-backend` / `--llm-provider`.
+- New testdata `claude_session_remote_rerank.jsonl` + a stubbed-remote test
+  suite (`internal/llm/remote_test.go`) covering the OpenAI and Anthropic wire
+  shapes, the auth-failure / missing-key / timeout fallbacks, and the stderr
+  host echo. Live remote test gated behind `EXCISE_LIVE_REMOTE=1` (CI never
+  calls a real provider).
+
+### Changed
+- **Trust contract preserved by design.** The default backend stays `ollama`
+  (local-only); the remote path is reached only when `backend=remote` AND a key
+  is supplied, and the destination host is echoed to stderr on every remote
+  call so an outbound call is never silent. Same graceful fallback as the
+  Ollama path: on auth failure / timeout / unreachable, warn on stderr and fall
+  back to the heuristic ranking (exit 0).
+
+### Fixed
+- **`[llm].top_n` is now honored.** The documented knob was loaded, defaulted,
+  validated and documented but never read — `rankCandidates` sized the LLM
+  shortlist from the CLI `--top` arg only, making `top_n` a silent no-op. It now
+  governs the LLM shortlist (`max(top, top_n)`).
+- **Previews truncate on rune boundaries, not byte offsets.** `previewText`
+  (`internal/session/loader.go`), `printList` (`cmd/excise/main.go`), and the
+  TUI `truncate` (`internal/tui/model.go`) byte-sliced UTF-8 strings, which
+  could split a multibyte rune (common for zh-CN sessions) and emit invalid
+  UTF-8 into both the display and the Ollama rerank prompt. All three now cap by
+  rune count.
+- **Cursor sqlite cuts no longer risk clobbering the live database on
+  rollback.** A Cursor `.vscdb` cut is non-destructive (it only writes a sidecar
+  `<db>.excised.jsonl`), but `commitExcise` snapshotted/logged the live `.vscdb`
+  as `source_path`, so `excise rollback <id>` could rename a stale snapshot over
+  the user's current Cursor database. Snapshot + edit-log `source_path` now
+  resolve via `session.WriteTarget` to the actual write target (the sidecar),
+  never the live DB; first sidecar cuts (nothing to roll back to) skip the
+  snapshot.
+
 ## [0.3.0] — 2026-05-23
 
 ### Added

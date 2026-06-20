@@ -49,9 +49,13 @@ type globalFlags struct {
 
 	// v0.3 LLM-rerank knobs. Shared between `pick` and `suggest` because
 	// both commands run the same heuristic→rerank pipeline.
-	llm        bool   // opt-in: route the heuristic shortlist through Ollama
-	llmModel   string // CLI override of [llm].model
-	llmHost    string // CLI override of [llm].host
+	llm      bool   // opt-in: route the heuristic shortlist through the LLM
+	llmModel string // CLI override of [llm].model
+	llmHost  string // CLI override of [llm].host
+
+	// v0.4 remote-backend knobs. Override [llm].backend / [llm].provider.
+	llmBackend  string // ollama | remote
+	llmProvider string // openai | anthropic | openrouter
 }
 
 func newRootCmd() *cobra.Command {
@@ -82,9 +86,11 @@ ordering, stable ids, and atomic tool_use ↔ tool_result pairs.`,
 	root.PersistentFlags().BoolVar(&gf.dryRun, "dry-run", false, "print the diff but do not write")
 	root.PersistentFlags().BoolVarP(&gf.yes, "yes", "y", false, "skip the confirmation prompt")
 	root.PersistentFlags().BoolVar(&gf.noSuggest, "no-suggest", false, "skip the v0.2 heuristic pre-mark in the picker (restore v0.1 behavior)")
-	root.PersistentFlags().BoolVar(&gf.llm, "llm", false, "v0.3: rerank the heuristic shortlist via the local Ollama host (opt-in)")
-	root.PersistentFlags().StringVar(&gf.llmModel, "llm-model", "", "v0.3: override the [llm].model from excise.toml")
-	root.PersistentFlags().StringVar(&gf.llmHost, "llm-host", "", "v0.3: override the [llm].host from excise.toml")
+	root.PersistentFlags().BoolVar(&gf.llm, "llm", false, "rerank the heuristic shortlist via the configured LLM backend (opt-in)")
+	root.PersistentFlags().StringVar(&gf.llmModel, "llm-model", "", "override the [llm].model from excise.toml")
+	root.PersistentFlags().StringVar(&gf.llmHost, "llm-host", "", "override the [llm].host from excise.toml (Ollama backend)")
+	root.PersistentFlags().StringVar(&gf.llmBackend, "llm-backend", "", "v0.4: override the [llm].backend (ollama|remote)")
+	root.PersistentFlags().StringVar(&gf.llmProvider, "llm-provider", "", "v0.4: override the [llm].provider (openai|anthropic|openrouter)")
 
 	root.AddCommand(newListCmd(&gf))
 	root.AddCommand(newPickCmd(&gf))
@@ -226,8 +232,10 @@ func printList(s *session.Session) {
 		if preview == "" {
 			preview = "(empty)"
 		}
-		if len(preview) > 50 {
-			preview = preview[:49] + "…"
+		// Cap by rune count, not byte offset, so multibyte UTF-8 (zh-CN) is
+		// never split into invalid bytes in the printed listing.
+		if r := []rune(preview); len(r) > 50 {
+			preview = string(r[:49]) + "…"
 		}
 		fmt.Printf("%-4d  %-9s  %-6d  %-8s  %s\n", i+1, t.Role, t.TokenEst, ts, preview)
 	}
@@ -303,9 +311,26 @@ func commitExcise(s *session.Session, seeds map[string]bool, gf *globalFlags, so
 		}
 	}
 
-	snap, err := safety.BeforeWrite(s.SessionID, s.SourcePath)
-	if err != nil {
-		return fmt.Errorf("snapshot: %w", err)
+	// Determine the file the cut actually mutates. For a Cursor sqlite source
+	// the cut is non-destructive: CursorWriter only emits a sidecar
+	// <db>.excised.jsonl and never touches the live state.vscdb. Snapshotting /
+	// logging the live .vscdb here would make `excise rollback <id>` infer the
+	// live DB as its destination and clobber the user's current Cursor database
+	// with a stale snapshot of something the cut never modified. So the snapshot
+	// + edit-log source_path must point at the real write target (the sidecar),
+	// never the live database.
+	writeTarget := session.WriteTarget(s)
+
+	var snap *safety.Snapshot
+	// Only snapshot when the write target already exists. On a first sidecar cut
+	// the .excised.jsonl does not yet exist, so there is nothing to roll back to
+	// — and crucially nothing is being destroyed.
+	if _, statErr := os.Stat(writeTarget); statErr == nil {
+		sn, err := safety.BeforeWrite(s.SessionID, writeTarget)
+		if err != nil {
+			return fmt.Errorf("snapshot: %w", err)
+		}
+		snap = sn
 	}
 
 	s.Turns = session.Excise(s.Turns, seeds)
@@ -323,18 +348,26 @@ func commitExcise(s *session.Session, seeds map[string]bool, gf *globalFlags, so
 		removed = append(removed, id)
 	}
 	sort.Strings(removed)
+	snapID := ""
+	if snap != nil {
+		snapID = snap.ID
+	}
 	_ = safety.LogEdit(map[string]any{
 		"ts":          time.Now().UTC().Format(time.RFC3339),
 		"session_id":  s.SessionID,
-		"source_path": s.SourcePath,
-		"snapshot":    snap.ID,
+		"source_path": writeTarget,
+		"snapshot":    snapID,
 		"removed_ids": removed,
 		"command":     source,
 		"tool":        string(s.Tool),
 	})
 
-	fmt.Fprintf(os.Stderr, "✔ committed. snapshot: %s\n", snap.ID)
-	fmt.Fprintf(os.Stderr, "  rollback with: excise rollback %s\n", snap.ID)
+	if snapID != "" {
+		fmt.Fprintf(os.Stderr, "✔ committed. snapshot: %s\n", snapID)
+		fmt.Fprintf(os.Stderr, "  rollback with: excise rollback %s\n", snapID)
+	} else {
+		fmt.Fprintf(os.Stderr, "✔ committed. wrote %s (no prior version to snapshot)\n", writeTarget)
+	}
 	return nil
 }
 
