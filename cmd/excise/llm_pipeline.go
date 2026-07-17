@@ -62,9 +62,10 @@ type rankResult struct {
 	UsedLLM      bool                // true if the rerank actually ran (and merged)
 	Fallback     bool                // true if --llm was passed but LLM was unreachable
 	FallbackErr  error               // the failure reason (for the stderr warning)
-	Model        string              // model tag actually used (for the table footer)
-	Host         string              // host actually used
-	SourceConfig string              // excise.toml path or "" for defaults
+	Backend      string             // backend that ran (ollama | remote) — for the footer/host echo
+	Model        string             // model tag actually used (for the table footer)
+	Host         string             // destination host actually used (remote provider host or Ollama host)
+	SourceConfig string             // excise.toml path or "" for defaults
 }
 
 // rankCandidates runs the v0.2 heuristic scorer, optionally followed by
@@ -121,6 +122,18 @@ func rankCandidates(ctx context.Context, gf *globalFlags, s *session.Session, to
 
 	res.Model = cfg.LLM.Model
 	res.Host = cfg.LLM.Host
+	// fix_backend_label_host_echo: when the remote backend ran, the footer /
+	// pre-mark line must report the REAL destination (the remote provider's
+	// host), not cfg.LLM.Host — which is the Ollama-only field and stays at its
+	// "http://localhost:11434" default even when backend=remote. Otherwise the
+	// stdout table would say "host=http://localhost:11434" for an OpenAI call.
+	res.Backend = cfg.LLM.Backend
+	if res.Backend == "" {
+		res.Backend = config.BackendOllama
+	}
+	if cfg.LLM.IsRemote() {
+		res.Host = llm.RemoteHost(cfg.LLM.Provider, cfg.LLM.BaseURL)
+	}
 	res.SourceConfig = cfg.SourcePath
 
 	if len(heur) == 0 {

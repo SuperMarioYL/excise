@@ -88,6 +88,17 @@ func (c RemoteConfig) host() string {
 	return b
 }
 
+// RemoteHost returns the destination host (scheme://host) for a remote
+// backend given the provider and optional base_url override, without
+// constructing a client. Used by callers that need to report the
+// trust-echo host on stdout (e.g. the `excise suggest` table footer and
+// the `excise pick` pre-mark line) in addition to the stderr echo emitted
+// inside Generate. This reuses the same host() logic so the two surfaces
+// can never disagree about where the outbound call is going.
+func RemoteHost(provider, baseURL string) string {
+	return RemoteConfig{Provider: provider, BaseURL: baseURL}.host()
+}
+
 // RemoteClient is the tiny HTTP shim around a provider's chat endpoint.
 type RemoteClient struct {
 	cfg RemoteConfig

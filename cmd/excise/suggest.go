@@ -116,8 +116,13 @@ func emitSuggestTable(out *os.File, s *session.Session, res *rankResult) error {
 
 	switch {
 	case hasLLM:
-		fmt.Fprintf(out, "\n%d candidate(s) reranked by ollama:%s (host=%s).\n",
-			len(picks), res.Model, res.Host)
+		// fix_backend_label_host_echo: report the backend + host that actually
+		// ran (res.Backend / res.Host), not a hardcoded "ollama" + the Ollama
+		// localhost default. The stderr echo inside RemoteClient.Generate is the
+		// source of truth for the remote destination; this keeps the stdout
+		// footer consistent with it so the reported host never lies.
+		fmt.Fprintf(out, "\n%d candidate(s) reranked by %s:%s (host=%s).\n",
+			len(picks), res.Backend, res.Model, res.Host)
 		fmt.Fprintln(out, "Run `excise pick --llm` to review interactively.")
 	case res.Fallback:
 		fmt.Fprintf(out, "\n%d candidate(s) totalling ~%d tokens (LLM unavailable — heuristic shown).\n",

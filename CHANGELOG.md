@@ -5,6 +5,47 @@ All notable changes to **Excise** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-07-17
+
+### Added
+- **`excise ping`** — new subcommand that sends a trivial one-token prompt to
+  the configured LLM backend (Ollama or the opt-in remote backend) and reports
+  whether it answered. Closes the v0.4 usability gap: the only prior way to
+  verify a remote setup (API key / `base_url` / `provider` / `model`) was to
+  run a full `excise suggest --llm` on a real session and watch for the silent
+  stderr fallback warning, which conflated "my config is wrong" with "this
+  session had nothing to rerank". `ping` needs no session; it reuses the SAME
+  `OllamaClient.Generate` / `RemoteClient.Generate` transport (so the remote
+  destination host is echoed to stderr by the existing trust-echo path — no new
+  outbound surface). Opt-in (requires `--llm`); default backend unchanged;
+  writes nothing; fail-soft (a backend failure exits 0; a malformed
+  `excise.toml` exits 1). New files `cmd/excise/ping.go` +
+  `cmd/excise/ping_test.go`.
+
+### Fixed
+- **The `suggest` footer and `pick` pre-mark line now report the real
+  backend/host.** They previously hardcoded `"ollama"` and read `cfg.LLM.Host`
+  (the Ollama-only field), so on a `backend=remote` run the stdout table read
+  "reranked by ollama:gpt-4o-mini (host=http://localhost:11434)" — the
+  destination host line contradicted the actual outbound call (only the stderr
+  echo inside `RemoteClient.Generate` was correct). A new `Backend` field on
+  `rankResult` plus an exported `llm.RemoteHost(provider, baseURL)` helper
+  (reusing the existing host-resolution logic) make the reported backend/host
+  match what ran. The Ollama path is bit-identical.
+- **`CursorWriter` no longer silently truncates the live session on a
+  mid-write failure.** `writeSidecar` and `writeJSONL` did
+  `_ = bw.Flush(); tmp.Close(); return os.Rename(...)`, ignoring both errors;
+  on a flush failure (disk full / ENOSPC) the rename still succeeded and left a
+  truncated file the user believed was intact. For `writeJSONL` the rename
+  target is the LIVE Cursor jsonl session — silent data loss. Both paths now
+  mirror `ClaudeWriter`'s atomic-write guard: check `Flush` and `Close`,
+  remove the tmp on failure, and surface the error before any rename.
+- **Bumped the stale `var version` constant.** It still read `"0.3.0"` in the
+  v0.4.0 tag. goreleaser injects the tag via ldflags for release binaries, but
+  `go install ...@latest` (the documented install path) does not, so
+  `excise --version` printed `"0.3.0"` on a v0.4.0 binary built via go install.
+  Now `"0.5.0"`.
+
 ## [0.4.0] — 2026-06-20
 
 ### Added

@@ -28,7 +28,7 @@ import (
 	"github.com/SuperMarioYL/excise/internal/tui"
 )
 
-var version = "0.3.0"
+var version = "0.5.0"
 
 func main() {
 	root := newRootCmd()
@@ -97,6 +97,7 @@ ordering, stable ids, and atomic tool_use ↔ tool_result pairs.`,
 	root.AddCommand(newCutCmd(&gf))
 	root.AddCommand(newRollbackCmd(&gf))
 	root.AddCommand(newSuggestCmd(&gf))
+	root.AddCommand(newPingCmd(&gf))
 
 	return root
 }
@@ -262,7 +263,10 @@ func runPick(gf *globalFlags) error {
 		preMarked = idsFor(res.Picks, 5, 0.0)
 		if res.UsedLLM && anyLLMReason(res.Picks) {
 			reasons = reasonsFor(res.Picks)
-			fmt.Fprintf(os.Stderr, "excise: %d turn(s) pre-marked by ollama:%s (--no-suggest to disable)\n", len(preMarked), res.Model)
+			// fix_backend_label_host_echo: report the real backend, not a
+			// hardcoded "ollama", so the pre-mark line matches the actual
+			// rerank transport (local Ollama or the opt-in remote backend).
+			fmt.Fprintf(os.Stderr, "excise: %d turn(s) pre-marked by %s:%s (--no-suggest to disable)\n", len(preMarked), res.Backend, res.Model)
 		} else if len(preMarked) > 0 {
 			fmt.Fprintf(os.Stderr, "excise: %d turn(s) pre-marked by the suggestion engine (--no-suggest to disable)\n", len(preMarked))
 		}

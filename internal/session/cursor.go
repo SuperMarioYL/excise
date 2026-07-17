@@ -293,14 +293,26 @@ func (w *CursorWriter) writeSidecar(s *Session) error {
 		return err
 	}
 	tmpPath := tmp.Name()
+	// Atomic-write guard, matching ClaudeWriter: a flush/close failure (disk
+	// full, ENOSPC, mid-write FS error) MUST surface before the rename —
+	// otherwise os.Rename succeeds over a truncated tmp and the user is left
+	// with a silently-truncated sidecar they believe is intact.
+	cleanup := func() { _ = os.Remove(tmpPath) }
 	bw := bufio.NewWriter(tmp)
 	if err := emitCursorEnvelopes(bw, s); err != nil {
 		tmp.Close()
-		_ = os.Remove(tmpPath)
+		cleanup()
 		return err
 	}
-	_ = bw.Flush()
-	tmp.Close()
+	if err := bw.Flush(); err != nil {
+		tmp.Close()
+		cleanup()
+		return fmt.Errorf("flush sidecar: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return fmt.Errorf("close sidecar: %w", err)
+	}
 	return os.Rename(tmpPath, out)
 }
 
@@ -311,6 +323,11 @@ func (w *CursorWriter) writeJSONL(s *Session) error {
 		return err
 	}
 	tmpPath := tmp.Name()
+	// Atomic-write guard, matching ClaudeWriter: the rename target here is the
+	// LIVE Cursor jsonl session (os.Rename over s.SourcePath), so a swallowed
+	// flush/close failure would silently truncate the source transcript = data
+	// loss of the very session the user asked to edit. Surface before rename.
+	cleanup := func() { _ = os.Remove(tmpPath) }
 	bw := bufio.NewWriter(tmp)
 	for _, t := range s.Turns {
 		raw := bytes.TrimRight(t.Raw, "\r\n")
@@ -319,13 +336,20 @@ func (w *CursorWriter) writeJSONL(s *Session) error {
 		}
 		if _, err := bw.Write(raw); err != nil {
 			tmp.Close()
-			_ = os.Remove(tmpPath)
+			cleanup()
 			return err
 		}
 		_, _ = bw.Write([]byte("\n"))
 	}
-	_ = bw.Flush()
-	tmp.Close()
+	if err := bw.Flush(); err != nil {
+		tmp.Close()
+		cleanup()
+		return fmt.Errorf("flush jsonl: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return fmt.Errorf("close jsonl: %w", err)
+	}
 	return os.Rename(tmpPath, s.SourcePath)
 }
 
