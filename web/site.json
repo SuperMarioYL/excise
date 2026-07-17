@@ -7,16 +7,16 @@
   "accent": ["#3a9d8e"],
   "hero": {
     "eyebrow": {
-      "zh": "外科手术式 · 单二进制 · 默认零网络",
-      "en": "Surgical · Single binary · Zero-network default"
+      "zh": "本地运行 · 默认不联网 · 切错能退",
+      "en": "Runs locally · Offline by default · Undoable"
     },
     "headline": {
-      "zh": "切掉走偏的那几轮\n不必清空整个会话",
-      "en": "Cut the turns that derailed\nwithout clearing the session"
+      "zh": "agent 走偏了？只切掉那几轮\n不必从头开始",
+      "en": "Agent derailed? Cut just those turns\nwithout starting over"
     },
     "sub": {
-      "zh": "打开磁盘上的会话 JSONL，选中要删的轮次，依赖图自动配对 tool_use 与 tool_result，快照后原子写回。",
-      "en": "Open the on-disk session JSONL, mark the turns to cut, the dependency graph pairs tool_use with tool_result, and a snapshot guards the atomic write-back."
+      "zh": "给 Claude Code 和 Cursor 用户：在磁盘上的会话里圈出跑偏的几轮，一刀切掉，留下好的上下文。切错了一键退回。",
+      "en": "For Claude Code and Cursor users: mark the turns that went wrong in the on-disk session, cut them, keep the good context. Undo with one command if you miss."
     },
     "command": "go install github.com/SuperMarioYL/excise/cmd/excise@latest",
     "cta": { "zh": "开始使用", "en": "Get started" },
@@ -24,57 +24,57 @@
   },
   "advantages": [
     {
-      "title": { "zh": "依赖图感知的切除", "en": "Dependency-aware excision" },
+      "title": { "zh": "成对切除，不留伤", "en": "Cut pairs, leave nothing broken" },
       "body": {
-        "zh": "切掉一个 tool_use，它配对的 tool_result 一起走；留下孤立的 tool_result 会先警告。轮次顺序与稳定 ID 保持不变。",
-        "en": "Cut a tool_use and its paired tool_result goes with it; an orphaned tool_result triggers a warning first. Turn ordering and stable ids are preserved."
+        "zh": "一次工具调用和它的返回是绑定的。excise 知道哪几轮是一对，切调用就连同返回一起带走；切了返回留下孤立的调用，它会先警告你。轮次顺序和编号原样保留。",
+        "en": "A tool call and its reply are bound together. Excise knows which turns are a pair — cut the call and its reply goes with it; cut a reply and leave an orphaned call behind, it warns you first. Order and ids are preserved."
       },
       "chips": [
-        "› tool_use ↔ tool_result 配对",
-        "› 传递闭包自动拉入",
-        "› --force 覆盖警告"
+        "› 成对切除，不留孤儿",
+        "› 切错配对先警告",
+        "› 顺序与编号不变"
       ]
     },
     {
-      "title": { "zh": "快照优先 · 一条命令撤销", "en": "Snapshot-first, one-command undo" },
+      "title": { "zh": "切错了？一条命令退回", "en": "Cut the wrong turn? One command back" },
       "body": {
-        "zh": "每次写回前先 gzip 快照到 ~/.excise/snapshots/，edit_log 记录改动；excise rollback <id> 逐字节还原，30 天自动清理。",
-        "en": "Every write gzips a snapshot to ~/.excise/snapshots/ first, the edit_log records the change, and excise rollback <id> restores byte-for-byte. 30-day auto-prune."
+        "zh": "每次写回前先自动留底，改动有记录。excise rollback 一条命令按原样还原；留底过 30 天自动清理，不占地方。",
+        "en": "Every write is auto-saved first, with a record of what changed. excise rollback restores it as-is in one command; saves auto-prune after 30 days."
       },
       "chips": [
-        "› gzip 快照",
-        "› edit_log.jsonl 审计",
-        "› rollback 逐字节还原"
+        "› 每次写回自动留底",
+        "› 一条命令原样还原",
+        "› 30 天自动清理"
       ]
     },
     {
-      "title": { "zh": "纯标准库的启发式提名", "en": "Pure-stdlib heuristic nominations" },
+      "title": { "zh": "不知道切哪几轮？它先指给你看", "en": "Don't know which turns? It points first" },
       "body": {
-        "zh": "五条启发式打分——token 开销、重复编辑、用户纠错、工具报错后纠错、长漂移——只提名不自动切，零网络零 LLM。",
-        "en": "Five heuristics score every turn — token cost, repeated edits, user correction, tool-error-then-correction, long drift — it only nominates, never auto-cuts, zero network, no LLM."
+        "zh": "excise 读一遍会话，圈出最该切的几轮——超长回复、来回改同一个文件、你纠正过它、工具报错后又改、长篇大论没动手。只提名，不替你动刀，不联网也不学你的习惯。",
+        "en": "Excise reads the session once and flags the turns most worth cutting — long replies, repeated edits to the same file, turns you corrected, errors-then-corrections, long rambling without action. It only nominates, never auto-cuts; runs offline, learns nothing across sessions."
       },
       "chips": [
-        "› 5 条启发式信号",
-        "› 只提名不自动切",
-        "› 纯函数无跨会话学习"
+        "› 圈出超长/重复/纠错/漂移",
+        "› 只提名，不替你动刀",
+        "› 不联网、不学你的习惯"
       ]
     },
     {
-      "title": { "zh": "可选 LLM 重排 · 本地或远端", "en": "Opt-in LLM rerank, local or remote" },
+      "title": { "zh": "想要更聪明的提名？可选挂一个模型", "en": "Want smarter picks? Optionally add a model" },
       "body": {
-        "zh": "默认零网络。--llm 把启发式短表交给本地 Ollama 或远端 OpenAI / Anthropic / OpenRouter 重排，每次远端调用都向 stderr 回显目标主机，失败回退启发式。",
-        "en": "Zero-network by default. --llm reranks the heuristic shortlist via local Ollama or remote OpenAI / Anthropic / OpenRouter; every remote call echoes the destination host to stderr, and failures fall back to heuristics."
+        "zh": "默认不联网。想更准，可以挂一个本地或远端模型给候选名单重排，每次外连都会告诉你去了哪台主机；连不上就自动回退到上面的规则。",
+        "en": "Offline by default. For sharper picks, point it at a local or remote model to re-rank the candidates; every remote call tells you which host it hit, and a miss falls back to the rules above."
       },
       "chips": [
-        "› 本地 Ollama 或远端 provider",
-        "› 目标主机每次回显",
-        "› excise ping 独立验证"
+        "› 默认不联网，挂模型才联网",
+        "› 每次外连告诉你去哪",
+        "› 连不上自动回退"
       ]
     }
   ],
   "scene": {
     "kind": "hub-nodes",
-    "nodes": ["Claude Code", "Cursor", "Ollama", "OpenAI", "Anthropic", "OpenRouter"]
+    "nodes": ["Claude Code", "Cursor"]
   },
   "cta": {
     "headline": {
@@ -82,15 +82,15 @@
       "en": "The third option between /clear and /compact"
     },
     "sub": {
-      "zh": "开源、MIT、单二进制、本地运行、默认不联网。Claude Code 与 Cursor 会话都在磁盘上原位编辑。",
-      "en": "Open source, MIT, single binary, runs locally, zero network by default. Edits Claude Code and Cursor sessions in place on disk."
+      "zh": "开源、MIT、本地运行、默认不联网。Claude Code 与 Cursor 的会话都在磁盘上原位编辑。",
+      "en": "Open source, MIT, runs locally, offline by default. Edits Claude Code and Cursor sessions in place on disk."
     },
     "button": { "zh": "在 GitHub 上开始", "en": "Get started on GitHub" }
   },
   "footer": {
     "tag": {
-      "zh": "外科手术式的编码 agent 会话编辑器",
-      "en": "The surgical context editor for coding-agent sessions"
+      "zh": "给跑偏的 coding agent 会话做减法",
+      "en": "Subtractive editing for derailed coding-agent sessions"
     }
   }
 }
