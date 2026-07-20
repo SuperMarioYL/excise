@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/SuperMarioYL/excise/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/SuperMarioYL/excise/ci.yml?branch=main&label=CI&logo=github&style=flat-square"/></a>
   <a href="https://golang.org/dl/"><img alt="Go" src="https://img.shields.io/badge/go-1.24%2B-00ADD8?logo=go&style=flat-square"/></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"/></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"/></a>
   <a href="https://github.com/SuperMarioYL/excise/releases"><img alt="Release" src="https://img.shields.io/github/v/release/SuperMarioYL/excise?display_name=tag&logo=github&style=flat-square"/></a>
   <a href="https://github.com/SuperMarioYL/excise/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/SuperMarioYL/excise?style=flat-square&logo=github&color=yellow"/></a>
   <a href="https://goreportcard.com/report/github.com/SuperMarioYL/excise"><img alt="Go report" src="https://goreportcard.com/badge/github.com/SuperMarioYL/excise?style=flat-square"/></a>
