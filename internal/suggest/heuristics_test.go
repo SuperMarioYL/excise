@@ -207,3 +207,105 @@ func TestLexiconMatchEmpty(t *testing.T) {
 		t.Errorf("empty input should not match; got %+v", m)
 	}
 }
+
+// --- Cursor Raw shape regression coverage (v0.6.0:
+// fix-cursor-sqlite-heuristics-bare-bubble-raw) ---
+//
+// The Cursor jsonl loader stores the ENVELOPE shape {"composerId":...,
+// "bubble":{...}} in t.Raw, but the sqlite loader (loadSqlite, the real
+// state.vscdb install) stores the BARE bubble value with no envelope wrapper
+// (internal/session/cursor.go:217). extractEditPaths / extractTextFromRaw
+// used to re-parse t.Raw expecting the envelope only, so on the sqlite path
+// they unmarshaled into an empty Bubble, found no toolFormers/text, and
+// returned nil / "" — RepeatedFileEdit never fired and the correction-phrase
+// raw fallback missed phrases beyond the 120-char preview. These tests feed
+// BOTH the envelope and bare-bubble Raw shapes so the sqlite regression
+// cannot return silently.
+
+// cursorEnvelopeTurn builds a Cursor ENVELOPE-shaped Raw (the jsonl loader
+// shape): {"composerId":...,"bubble":{...}}. toolFormers carry the edited
+// file path in input.file_path — the path the heuristic walks first.
+func cursorEnvelopeTurn(id, path string) session.Turn {
+	bubble := `{"text":"editing ` + path + `","toolFormers":[{"toolCallId":"tc-` + id + `","name":"edit_file","input":{"file_path":"` + path + `"}}]}`
+	raw := []byte(`{"composerId":"comp-x","bubble":` + bubble + `}`)
+	return session.Turn{
+		ID:        id,
+		Role:      session.RoleAssistant,
+		Raw:       raw,
+		ToolCalls: []session.ToolCall{{ID: "tc-" + id, Name: "edit_file"}},
+	}
+}
+
+// cursorBareBubbleTurn builds a Cursor BARE-BUBBLE-shaped Raw — what the
+// sqlite loader stores in t.Raw (the bubble value with NO envelope wrapper).
+// This is the production Cursor install path the heuristic used to silently
+// miss.
+func cursorBareBubbleTurn(id, path string) session.Turn {
+	raw := []byte(`{"bubbleId":"` + id + `","type":2,"text":"editing ` + path + `","toolFormers":[{"toolCallId":"tc-` + id + `","name":"edit_file","input":{"file_path":"` + path + `"}}]}`)
+	return session.Turn{
+		ID:        id,
+		Role:      session.RoleAssistant,
+		Raw:       raw,
+		ToolCalls: []session.ToolCall{{ID: "tc-" + id, Name: "edit_file"}},
+	}
+}
+
+// TestExtractEditPathsCursorEnvelope is the control: the jsonl (envelope) path
+// was always supported, so extractEditPaths must return the edited path.
+func TestExtractEditPathsCursorEnvelope(t *testing.T) {
+	paths := extractEditPaths(cursorEnvelopeTurn("b-env", "foo.go"))
+	if len(paths) != 1 || paths[0] != "foo.go" {
+		t.Fatalf("envelope extractEditPaths = %v, want [foo.go]", paths)
+	}
+}
+
+// TestExtractEditPathsCursorBareBubble reproduces the sqlite regression: the
+// bare-bubble shape (what loadSqlite stores) used to unmarshal into an empty
+// Bubble and return nil. After the fix it must return the edited path.
+func TestExtractEditPathsCursorBareBubble(t *testing.T) {
+	paths := extractEditPaths(cursorBareBubbleTurn("b-bare", "foo.go"))
+	if len(paths) != 1 || paths[0] != "foo.go" {
+		t.Fatalf("bare-bubble extractEditPaths = %v, want [foo.go]", paths)
+	}
+}
+
+// TestDetectRepeatedFileEditCursorBareBubble is the headline regression: on
+// the production Cursor sqlite path RepeatedFileEdit never fired because no
+// edit paths were extracted. Three bare-bubble edits to the same file must
+// now flag every contributing turn.
+func TestDetectRepeatedFileEditCursorBareBubble(t *testing.T) {
+	turns := []session.Turn{
+		cursorBareBubbleTurn("b1", "foo.go"),
+		cursorBareBubbleTurn("b2", "foo.go"),
+		cursorBareBubbleTurn("b3", "foo.go"),
+		cursorBareBubbleTurn("b4", "bar.go"), // breaks the streak
+	}
+	got := detectRepeatedFileEdit(turns)
+	for _, id := range []string{"b1", "b2", "b3"} {
+		if _, ok := got[id]; !ok {
+			t.Errorf("expected %s flagged for repeated_file_edit (bare-bubble sqlite path), got %+v", id, got)
+		}
+	}
+	if _, ok := got["b4"]; ok {
+		t.Errorf("b4 (different file) should not be flagged")
+	}
+}
+
+// TestExtractTextFromRawCursorEnvelope confirms the correction-phrase fallback
+// reads bubble.text from the envelope (jsonl) shape.
+func TestExtractTextFromRawCursorEnvelope(t *testing.T) {
+	raw := []byte(`{"composerId":"c","bubble":{"text":"no, that is wrong, undo that"}}`)
+	if got := extractTextFromRaw(raw); got != "no, that is wrong, undo that" {
+		t.Fatalf("envelope extractTextFromRaw = %q, want the correction phrase", got)
+	}
+}
+
+// TestExtractTextFromRawCursorBareBubble reproduces the second half of the
+// defect: the raw-text fallback (used by the two correction heuristics when
+// the 120-char preview is too short) returned "" for the bare-bubble shape.
+func TestExtractTextFromRawCursorBareBubble(t *testing.T) {
+	raw := []byte(`{"bubbleId":"b","type":1,"text":"no, that is wrong, undo that"}`)
+	if got := extractTextFromRaw(raw); got != "no, that is wrong, undo that" {
+		t.Fatalf("bare-bubble extractTextFromRaw = %q, want the correction phrase", got)
+	}
+}

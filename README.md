@@ -388,4 +388,4 @@ scope.
 
 ## License
 
-[MIT](LICENSE) © 2026 SuperMarioYL
+[Apache-2.0](LICENSE) © 2026 SuperMarioYL

@@ -41,10 +41,10 @@ const (
 // (a custom tool not on the list) just means RepeatedFileEdit won't fire,
 // which is safe (worst case: we under-suggest).
 var editingToolNames = map[string]bool{
-	"Edit":      true,
-	"Write":     true,
-	"MultiEdit": true,
-	"edit_file": true,
+	"Edit":       true,
+	"Write":      true,
+	"MultiEdit":  true,
+	"edit_file":  true,
 	"write_file": true,
 }
 
@@ -324,41 +324,76 @@ func extractEditPaths(t session.Turn) []string {
 			}
 		}
 	}
-	// Try Cursor shape.
-	var cursor struct {
-		Bubble struct {
-			Text        string `json:"text"`
-			ToolFormers []struct {
-				Name  string          `json:"name"`
-				Input json.RawMessage `json:"input"`
-				Args  json.RawMessage `json:"args"`
-			} `json:"toolFormers"`
-		} `json:"bubble"`
+	// Try Cursor shape. The Cursor jsonl loader stores the ENVELOPE
+	// {"bubble":{...}} in t.Raw, but the sqlite loader (loadSqlite) stores
+	// the BARE bubble value with no envelope wrapper — see
+	// internal/session/cursor.go:217 (bubbleToTurn(&b, r.value, 0), where
+	// r.value is the unwrapped bubble JSON). So we must accept both shapes:
+	// unwrap the envelope first, and if that yields an empty bubble
+	// (bare-bubble shape), re-parse t.Raw directly at the top level. Without
+	// this the Cursor branch unmarshals into an empty Bubble, finds no
+	// toolFormers/text, and returns nil — so RepeatedFileEdit never fires on
+	// the production sqlite path.
+	var env struct {
+		Bubble cursorBubbleHeuristic `json:"bubble"`
 	}
-	if err := json.Unmarshal(t.Raw, &cursor); err == nil {
-		var paths []string
-		for _, f := range cursor.Bubble.ToolFormers {
-			if !editingToolNames[f.Name] {
-				continue
-			}
-			if p := pathFromToolInput(f.Input); p != "" {
-				paths = append(paths, p)
-				continue
-			}
-			if p := pathFromToolInput(f.Args); p != "" {
-				paths = append(paths, p)
+	if err := json.Unmarshal(t.Raw, &env); err == nil {
+		if paths := pathsFromCursorBubble(env.Bubble); len(paths) > 0 {
+			return paths
+		}
+		// Envelope unwrap yielded an empty bubble → bare-bubble shape
+		// (the sqlite path). Re-parse t.Raw directly as the bubble value.
+		if env.Bubble.Text == "" && len(env.Bubble.ToolFormers) == 0 {
+			var bare cursorBubbleHeuristic
+			if err := json.Unmarshal(t.Raw, &bare); err == nil {
+				if paths := pathsFromCursorBubble(bare); len(paths) > 0 {
+					return paths
+				}
 			}
 		}
-		// Fallback: bubble.text occasionally contains "path=foo.go" markers
-		// in our fixtures so users can write polluted demos by hand.
-		if len(paths) == 0 && cursor.Bubble.Text != "" {
-			if p := pathFromTextMarker(cursor.Bubble.Text); p != "" {
-				paths = append(paths, p)
-			}
-		}
-		return paths
 	}
 	return nil
+}
+
+// cursorBubbleHeuristic is the subset of a Cursor bubble the heuristic layer
+// re-parses from t.Raw. toolFormers may carry the edited file path in either
+// `input` or `args`; bubble.text is a last-resort source of `path=...` markers
+// for hand-written polluted demos. Shared by the envelope and bare-bubble
+// parse paths so the sqlite regression cannot diverge from the jsonl path.
+type cursorBubbleHeuristic struct {
+	Text        string `json:"text"`
+	ToolFormers []struct {
+		Name  string          `json:"name"`
+		Input json.RawMessage `json:"input"`
+		Args  json.RawMessage `json:"args"`
+	} `json:"toolFormers"`
+}
+
+// pathsFromCursorBubble walks a Cursor bubble's toolFormers for edited file
+// paths, falling back to a `path=` text marker in the bubble text. Used by
+// both the envelope unwrap and the bare-bubble re-parse in extractEditPaths.
+func pathsFromCursorBubble(b cursorBubbleHeuristic) []string {
+	var paths []string
+	for _, f := range b.ToolFormers {
+		if !editingToolNames[f.Name] {
+			continue
+		}
+		if p := pathFromToolInput(f.Input); p != "" {
+			paths = append(paths, p)
+			continue
+		}
+		if p := pathFromToolInput(f.Args); p != "" {
+			paths = append(paths, p)
+		}
+	}
+	// Fallback: bubble.text occasionally contains "path=foo.go" markers
+	// in our fixtures so users can write polluted demos by hand.
+	if len(paths) == 0 && b.Text != "" {
+		if p := pathFromTextMarker(b.Text); p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths
 }
 
 // pathFromToolInput returns the file_path / path / target_file value from a
@@ -446,13 +481,25 @@ func extractTextFromRaw(raw []byte) string {
 			return strings.Join(parts, " ")
 		}
 	}
-	var cursor struct {
+	// Try Cursor shape. The jsonl loader stores the ENVELOPE
+	// {"bubble":{"text":...}} in t.Raw, but the sqlite loader stores the
+	// BARE bubble value with no envelope wrapper (internal/session/cursor.go:217).
+	// Accept both so the correction-phrase fallback works on the production
+	// Cursor sqlite path, not just the jsonl fixture path — otherwise phrases
+	// beyond the 120-char preview are silently missed on the real install.
+	var env struct {
 		Bubble struct {
 			Text string `json:"text"`
 		} `json:"bubble"`
 	}
-	if json.Unmarshal(raw, &cursor) == nil && cursor.Bubble.Text != "" {
-		return cursor.Bubble.Text
+	if json.Unmarshal(raw, &env) == nil && env.Bubble.Text != "" {
+		return env.Bubble.Text
+	}
+	var bare struct {
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &bare) == nil && bare.Text != "" {
+		return bare.Text
 	}
 	return ""
 }
