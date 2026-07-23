@@ -50,13 +50,13 @@
     {
       "title": { "zh": "不知道切哪几轮？它先指给你看", "en": "Don't know which turns? It points first" },
       "body": {
-        "zh": "excise 读一遍会话，圈出最该切的几轮——超长回复、来回改同一个文件、你纠正过它、工具报错后又改、长篇大论没动手。只提名，不替你动刀，不联网也不学你的习惯。",
-        "en": "Excise reads the session once and flags the turns most worth cutting — long replies, repeated edits to the same file, turns you corrected, errors-then-corrections, long rambling without action. It only nominates, never auto-cuts; runs offline, learns nothing across sessions."
+        "zh": "excise 读一遍会话，圈出最该切的几轮——超长回复、来回改同一个文件、你纠正过它、工具报错后又改、长篇大论没动手。Claude Code 和 Cursor 的真实会话它都看得一样清楚，只提名，不替你动刀，不联网也不学你的习惯。",
+        "en": "Excise reads the session once and flags the turns most worth cutting — long replies, repeated edits to the same file, turns you corrected, errors-then-corrections, long rambling without action. It reads real Claude Code and Cursor sessions the same way, only nominates, never auto-cuts, runs offline and learns nothing across sessions."
       },
       "chips": [
         "› 圈出超长/重复/纠错/漂移",
-        "› 只提名，不替你动刀",
-        "› 不联网、不学你的习惯"
+        "› Claude Code、Cursor 都看清",
+        "› 只提名，不替你动刀"
       ]
     },
     {
@@ -82,8 +82,8 @@
       "en": "The third option between /clear and /compact"
     },
     "sub": {
-      "zh": "开源、MIT、本地运行、默认不联网。Claude Code 与 Cursor 的会话都在磁盘上原位编辑。",
-      "en": "Open source, MIT, runs locally, offline by default. Edits Claude Code and Cursor sessions in place on disk."
+      "zh": "开源、Apache-2.0、本地运行、默认不联网。Claude Code 与 Cursor 的会话都在磁盘上原位编辑。",
+      "en": "Open source, Apache-2.0, runs locally, offline by default. Edits Claude Code and Cursor sessions in place on disk."
     },
     "button": { "zh": "在 GitHub 上开始", "en": "Get started on GitHub" }
   },
@@ -92,5 +92,6 @@
       "zh": "给跑偏的 coding agent 会话做减法",
       "en": "Subtractive editing for derailed coding-agent sessions"
     }
-  }
+  },
+  "content_version": "v0.6.0"
 }
