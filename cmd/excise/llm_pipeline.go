@@ -111,8 +111,17 @@ func rankCandidates(ctx context.Context, gf *globalFlags, s *session.Session, to
 	// knob governs the LLM shortlist size. Previously the shortlist was sized
 	// from the CLI --top arg only, so top_n was a silent no-op. Prefer the
 	// larger of the CLI top and the configured top_n so neither is surprising.
+	//
+	// fix_llm_top_zero_caps_shortlist: --top is documented as "0 = all"
+	// (cmd/excise/suggest.go) and the heuristic path honors it (TopK is
+	// unbounded for k<=0). But max(top, top_n) treats that 0 sentinel as a
+	// literal bound, silently re-capping the rerank shortlist to top_n (e.g.
+	// 5) even though the user asked for ALL candidates reranked. Only grow
+	// the shortlist from top_n when the CLI top is a real bound; when
+	// top==0 ("all") leave llmTop==0 so TopK stays unbounded and the LLM
+	// reranks every candidate above minScore, matching the --top 0 semantics.
 	llmTop := top
-	if cfg.LLM.TopN > llmTop {
+	if top > 0 && cfg.LLM.TopN > llmTop {
 		llmTop = cfg.LLM.TopN
 	}
 	if llmTop != top {

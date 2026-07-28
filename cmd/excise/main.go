@@ -356,7 +356,7 @@ func commitExcise(s *session.Session, seeds map[string]bool, gf *globalFlags, so
 	if snap != nil {
 		snapID = snap.ID
 	}
-	_ = safety.LogEdit(map[string]any{
+	logErr := safety.LogEdit(map[string]any{
 		"ts":          time.Now().UTC().Format(time.RFC3339),
 		"session_id":  s.SessionID,
 		"source_path": writeTarget,
@@ -365,6 +365,18 @@ func commitExcise(s *session.Session, seeds map[string]bool, gf *globalFlags, so
 		"command":     source,
 		"tool":        string(s.Tool),
 	})
+	// fix_logedit_swallow_breaks_rollback_inference: the edit-log entry is
+	// the ONLY link between a snapshot id and its source_path, so a failed
+	// LogEdit silently breaks the bare `excise rollback <id>` path the
+	// commit message below advertises (lookupSourcePath returns "" when the
+	// entry is absent, and Rollback then errors "no destination path").
+	// Surface a stderr warning — kept non-fatal (a logging failure must
+	// never block a cut) — telling the user the snapshot is still valid and
+	// to roll back with the explicit `--to <writeTarget>` workaround.
+	if logErr != nil && snap != nil {
+		fmt.Fprintf(os.Stderr, "[excise] warning: could not write edit log (%v) — bare `excise rollback %s` will not resolve the destination.\n", logErr, snapID)
+		fmt.Fprintf(os.Stderr, "  the snapshot is valid; roll back with: excise rollback %s --to %s\n", snapID, writeTarget)
+	}
 
 	if snapID != "" {
 		fmt.Fprintf(os.Stderr, "✔ committed. snapshot: %s\n", snapID)

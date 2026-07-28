@@ -210,6 +210,55 @@ func TestReasonsForFiltersEmpty(t *testing.T) {
 	}
 }
 
+// TestRankCandidatesLLMTopZeroKeepsAllCandidates locks in
+// fix-llm-top-zero-caps-shortlist: `--top` is documented as "0 = all"
+// (cmd/excise/suggest.go) and the heuristic path honors it (TopK is
+// unbounded for k<=0). But the --llm path recomputed the shortlist as
+// max(top, cfg.LLM.TopN); with top=0 and the default top_n=5 that silently
+// re-capped the shortlist to 5 before the reranker saw it — re-introducing
+// the v0.4 top_n sentinel-bug for the "all" sentinel. Under the fix,
+// top==0 must leave the shortlist unbounded so the LLM reranks every
+// candidate above minScore, matching `excise suggest --top 0` (no --llm).
+func TestRankCandidatesLLMTopZeroKeepsAllCandidates(t *testing.T) {
+	// Isolate config discovery so config.Load() returns the defaults
+	// (top_n=5) regardless of the developer's ~/.config/excise/excise.toml.
+	// The bug only bites when the default top_n < the "all" candidate count.
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	s := loadFixture(t, "claude_session_llm_rerank.jsonl")
+	all := suggest.TopK(suggest.Score(s), 0, 0.0)
+	if len(all) == 0 {
+		t.Fatal("fixture produced 0 candidates; can't validate the all-sentinel")
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	if cfg.LLM.TopN >= len(all) {
+		t.Fatalf("test precondition: default top_n=%d must be < all-candidates=%d", cfg.LLM.TopN, len(all))
+	}
+
+	// No-op stub: mergeReplies returns the shortlist verbatim, so res.Picks
+	// is exactly what was handed to the reranker (i.e. the capped-or-not
+	// shortlist the fix controls).
+	withStubReranker(t, llm.NewStubReranker(nil, nil))
+
+	gf := &globalFlags{llm: true}
+	var stderr bytes.Buffer
+	res, err := rankCandidates(context.Background(), gf, s, 0, 0.0, &stderr)
+	if err != nil {
+		t.Fatalf("rankCandidates: %v", err)
+	}
+	if !res.UsedLLM {
+		t.Fatalf("UsedLLM should be true; got false")
+	}
+	if got, want := len(res.Picks), len(all); got != want {
+		t.Errorf("--top 0 --llm must rerank ALL %d candidates (honor the 0=all sentinel); got %d (silently re-capped to top_n=%d)",
+			want, got, cfg.LLM.TopN)
+	}
+}
+
 // ensure json package stays referenced (for any future test that decodes
 // `excise suggest --llm --json` output).
 var _ = json.Marshal
