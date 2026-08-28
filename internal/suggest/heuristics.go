@@ -55,6 +55,15 @@ var editingToolNames = map[string]bool{
 // downstream scorer already deduplicates.
 var errorMarker = regexp.MustCompile(`(?i)\b(error|failed|exception|traceback)\b`)
 
+// isErrorFlag matches an "is_error" / "isError" boolean flag regardless of the
+// JSON spacing around the colon. looksLikeError used to substring-match the
+// compact `"is_error":true` form only (no space), so a standard spaced
+// `"is_error": true` (real Claude Code exports — and excise's own
+// testdata/claude_session_polluted.jsonl) was silently missed when the result
+// content also lacked an error word, dropping the failing tool_use turn from
+// the tool_use_error_then_correction heuristic — a false negative.
+var isErrorFlag = regexp.MustCompile(`"(?:is_error|isError)"\s*:\s*true`)
+
 // detectHighTokenCost flags assistant or tool turns whose TokenEst meets the
 // threshold. The threshold is a property of the trigger, not the turn — a
 // 500-token turn alone never flags, but a 500-token turn plus a correction
@@ -437,7 +446,11 @@ func looksLikeError(raw []byte) bool {
 	if errorMarker.Match(raw) {
 		return true
 	}
-	if strings.Contains(string(raw), `"is_error":true`) || strings.Contains(string(raw), `"isError":true`) {
+	// fix-looks-like-error-is-error-spacing: honour the is_error/isError flag
+	// regardless of JSON spacing (compact `"is_error":true` OR spaced
+	// `"is_error": true`), so a tool_result whose content has no error word
+	// is not silently dropped from tool_use_error_then_correction.
+	if isErrorFlag.Match(raw) {
 		return true
 	}
 	return false

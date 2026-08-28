@@ -28,7 +28,7 @@ import (
 	"github.com/SuperMarioYL/excise/internal/tui"
 )
 
-var version = "0.5.0"
+var version = "0.8.0"
 
 func main() {
 	root := newRootCmd()

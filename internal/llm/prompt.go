@@ -73,12 +73,24 @@ func parseRerankReply(raw string) ([]rerankReply, error) {
 		return nil, fmt.Errorf("%w: empty rerank reply", ErrLLMUnavailable)
 	}
 	if strings.HasPrefix(raw, "```") {
-		raw = strings.TrimPrefix(raw, "```json")
-		raw = strings.TrimPrefix(raw, "```")
-		if i := strings.LastIndex(raw, "```"); i >= 0 {
-			raw = raw[:i]
+		// fix-rerank-reply-uppercase-json-fence: strip the opening fence and
+		// an optional language tag on its line (json/JSON/javascript/...),
+		// case-insensitively, then the closing fence. The old
+		// strings.TrimPrefix(raw, "```json") was case-sensitive, so a ```JSON
+		// fence (several local Ollama models) left "JSON\n[...]" which
+		// json.Unmarshal rejected -> ErrLLMUnavailable -> the LLM rerank was
+		// silently discarded despite the model returning a valid verdict.
+		rest := raw[3:] // drop the opening ```
+		if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
+			tag := strings.TrimRight(rest[:nl], " \t\r")
+			if isFenceLang(tag) {
+				rest = rest[nl+1:]
+			}
 		}
-		raw = strings.TrimSpace(raw)
+		if i := strings.LastIndex(rest, "```"); i >= 0 {
+			rest = rest[:i]
+		}
+		raw = strings.TrimSpace(rest)
 	}
 	// Some models return {"results":[...]} instead of a bare array.
 	// Accept either.
@@ -110,4 +122,26 @@ func truncateRunes(s string, n int) string {
 		count++
 	}
 	return s
+}
+
+// isFenceLang reports whether s looks like a markdown info-string language
+// tag (json, JSON, javascript, ...) rather than real content that happens to
+// sit on the first line of a fenced block. Used by parseRerankReply to strip
+// the tag case-insensitively after the opening fence so an uppercase ```JSON
+// fence does not poison the JSON parse.
+func isFenceLang(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z',
+			r >= 'A' && r <= 'Z',
+			r >= '0' && r <= '9',
+			r == '+', r == '-', r == '_', r == '.':
+		default:
+			return false
+		}
+	}
+	return true
 }
