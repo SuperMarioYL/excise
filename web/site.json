@@ -211,5 +211,6 @@
         "code": "go run ./cmd/excise list testdata/claude_session_simple.jsonl\ngo run ./cmd/excise suggest testdata/claude_session_polluted.jsonl --json\ngo run ./cmd/excise cut 5 testdata/claude_session_simple.jsonl --dry-run\n# Interactive review of your own file:\ngo run ./cmd/excise pick session.jsonl"
       }
     ]
-  }
+  },
+  "content_version": "v0.8.0"
 }
