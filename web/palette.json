@@ -1,0 +1,38 @@
+{
+  "mode": "auto",
+  "id": "567ae6-8d6ae7-acdaf6-2e3e82ebf19b",
+  "identity": "https://github.com/supermarioyl/excise",
+  "primary": "#567ae6",
+  "secondary": "#8d6ae7",
+  "highlight": "#acdaf6",
+  "dark": {
+    "bg": "#050812",
+    "panel": "#0c121f",
+    "code": "#0a0f1d",
+    "ink": "#eef8fd",
+    "muted": "#95a4c4",
+    "line": "#172141",
+    "primary": "#567ae6",
+    "secondary": "#8d6ae7",
+    "highlight": "#acdaf6",
+    "accent": "#567ae6",
+    "buttonStart": "#5071d5",
+    "buttonEnd": "#8262d5",
+    "buttonText": "#ffffff"
+  },
+  "light": {
+    "bg": "#f9fafe",
+    "panel": "#f7f8fe",
+    "code": "#f3f6fd",
+    "ink": "#131b30",
+    "muted": "#556588",
+    "line": "#cbd6f7",
+    "primary": "#4c6bcb",
+    "secondary": "#7c5dcc",
+    "highlight": "#5c7483",
+    "accent": "#4c6bcb",
+    "buttonStart": "#5071d5",
+    "buttonEnd": "#8262d5",
+    "buttonText": "#ffffff"
+  }
+}

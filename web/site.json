@@ -1,97 +1,215 @@
 {
-  "schema": 1,
-  "name": "excise",
+  "schema": 3,
+  "name": "Excise",
   "github": "https://github.com/SuperMarioYL/excise",
   "host": "excise.lei6393.com",
-  "lang": { "primary": "zh", "toggle": true },
-  "accent": ["#3a9d8e"],
+  "palette": "auto",
+  "lang": {
+    "primary": "en",
+    "toggle": true
+  },
+  "meta": {
+    "visual_style": "neon-particle",
+    "demo_source": "docs/demo-results.json"
+  },
   "hero": {
-    "eyebrow": {
-      "zh": "本地运行 · 默认不联网 · 切错能退",
-      "en": "Runs locally · Offline by default · Undoable"
-    },
     "headline": {
-      "zh": "agent 走偏了？只切掉那几轮\n不必从头开始",
-      "en": "Agent derailed? Cut just those turns\nwithout starting over"
+      "en": "Remove selected transcript turns with a visible diff.",
+      "zh": "带着可见差异移除选定会话轮次。"
     },
     "sub": {
-      "zh": "给 Claude Code 和 Cursor 用户：在磁盘上的会话里圈出跑偏的几轮，一刀切掉，留下好的上下文。切错了一键退回。",
-      "en": "For Claude Code and Cursor users: mark the turns that went wrong in the on-disk session, cut them, keep the good context. Undo with one command if you miss."
+      "en": "Excise lists and edits supported coding-agent transcripts, preserving stable turn IDs and tool-call relationships while exposing the proposed cut before writing.",
+      "zh": "Excise 列出并编辑已支持的编码会话，保留稳定轮次 ID 与工具调用关系，写入前展示待删除内容。"
     },
-    "command": "go install github.com/SuperMarioYL/excise/cmd/excise@latest",
-    "cta": { "zh": "开始使用", "en": "Get started" },
-    "ctaGithub": { "zh": "在 GitHub 查看", "en": "View on GitHub" }
+    "href": "#quickstart"
   },
   "advantages": [
     {
-      "title": { "zh": "成对切除，不留伤", "en": "Cut pairs, leave nothing broken" },
-      "body": {
-        "zh": "一次工具调用和它的返回是绑定的。excise 知道哪几轮是一对，切调用就连同返回一起带走；切了返回留下孤立的调用，它会先警告你。轮次顺序和编号原样保留。",
-        "en": "A tool call and its reply are bound together. Excise knows which turns are a pair — cut the call and its reply goes with it; cut a reply and leave an orphaned call behind, it warns you first. Order and ids are preserved."
+      "title": {
+        "en": "Keep the useful turns",
+        "zh": "保留有用轮次"
       },
-      "chips": [
-        "› 成对切除，不留孤儿",
-        "› 切错配对先警告",
-        "› 顺序与编号不变"
-      ]
+      "body": {
+        "en": "Select a range instead of discarding the entire session.",
+        "zh": "按范围选择，无需丢弃整个会话。"
+      }
     },
     {
-      "title": { "zh": "切错了？一条命令退回", "en": "Cut the wrong turn? One command back" },
-      "body": {
-        "zh": "每次写回前先自动留底，改动有记录。excise rollback 一条命令按原样还原；留底过 30 天自动清理，不占地方。",
-        "en": "Every write is auto-saved first, with a record of what changed. excise rollback restores it as-is in one command; saves auto-prune after 30 days."
+      "title": {
+        "en": "Inspect before writing",
+        "zh": "写入前检查"
       },
-      "chips": [
-        "› 每次写回自动留底",
-        "› 一条命令原样还原",
-        "› 30 天自动清理"
-      ]
+      "body": {
+        "en": "Dry-run shows the proposed transcript diff.",
+        "zh": "dry-run 展示待应用的会话差异。"
+      }
     },
     {
-      "title": { "zh": "不知道切哪几轮？它先指给你看", "en": "Don't know which turns? It points first" },
-      "body": {
-        "zh": "excise 读一遍会话，圈出最该切的几轮——超长回复、来回改同一个文件、你纠正过它、工具报错后又改、长篇大论没动手。Claude Code 和 Cursor 的真实会话它都看得一样清楚，只提名，不替你动刀，不联网也不学你的习惯。",
-        "en": "Excise reads the session once and flags the turns most worth cutting — long replies, repeated edits to the same file, turns you corrected, errors-then-corrections, long rambling without action. It reads real Claude Code and Cursor sessions the same way, only nominates, never auto-cuts, runs offline and learns nothing across sessions."
+      "title": {
+        "en": "Keep recoverable edits",
+        "zh": "保留可恢复编辑"
       },
-      "chips": [
-        "› 圈出超长/重复/纠错/漂移",
-        "› Claude Code、Cursor 都看清",
-        "› 只提名，不替你动刀"
-      ]
+      "body": {
+        "en": "Existing write targets get a compressed snapshot.",
+        "zh": "修改已有目标前生成压缩快照。"
+      }
+    }
+  ],
+  "demo": {
+    "title": {
+      "en": "Run it on a complete example",
+      "zh": "运行完整示例"
+    },
+    "note": {
+      "en": "Python 3 drives a dry-run cut of turn 5 in the included transcript and verifies its SHA256 is unchanged.",
+      "zh": "Python 3 驱动对随仓会话第 5 轮的 dry-run 删除，并核实 SHA256 未变化。"
+    },
+    "source": "https://github.com/SuperMarioYL/excise/blob/main/docs/demo-results.json",
+    "steps": [
+      {
+        "label": "Recorded run",
+        "body": "Read-only cut preview on the bundled five-turn synthetic Claude transcript; no live session or snapshot store is modified.",
+        "command": "python3 examples/presentation_demo.py",
+        "output": "Will remove 1 turn(s) (including 0 pulled in by tool-call dependency):\n  - u-0003  [user] ~6t  Thanks, that is great.\ndry-run; no files written\nsource unchanged: True",
+        "image": "/assets/presentation/demo-0-light.svg",
+        "imageDark": "/assets/presentation/demo-0-dark.svg"
+      }
+    ]
+  },
+  "quickstart": {
+    "title": {
+      "en": "Try it locally",
+      "zh": "本地上手"
+    },
+    "body": {
+      "en": "Python 3 drives a dry-run cut of turn 5 in the included transcript and verifies its SHA256 is unchanged.",
+      "zh": "Python 3 驱动对随仓会话第 5 轮的 dry-run 删除，并核实 SHA256 未变化。"
+    },
+    "steps": [
+      {
+        "title": {
+          "en": "Install from source",
+          "zh": "从源码安装"
+        },
+        "code": "git clone https://github.com/SuperMarioYL/excise.git\ncd excise\ngo build ./cmd/excise"
+      },
+      {
+        "title": {
+          "en": "Run the included example",
+          "zh": "运行随仓示例"
+        },
+        "code": "python3 examples/presentation_demo.py"
+      }
+    ]
+  },
+  "limitations": [
+    {
+      "en": "The demo is dry-run only and confirms the original bytes stay unchanged. It does not test a running agent reloading the file.",
+      "zh": "示例仅 dry-run，并确认源字节不变；不测试运行中的 Agent 重新加载文件。"
     },
     {
-      "title": { "zh": "想要更聪明的提名？可选挂一个模型", "en": "Want smarter picks? Optionally add a model" },
-      "body": {
-        "zh": "默认不联网。想更准，可以挂一个本地或远端模型给候选名单重排，每次外连都会告诉你去了哪台主机；连不上就自动回退到上面的规则。",
-        "en": "Offline by default. For sharper picks, point it at a local or remote model to re-rank the candidates; every remote call tells you which host it hit, and a miss falls back to the rules above."
-      },
-      "chips": [
-        "› 默认不联网，挂模型才联网",
-        "› 每次外连告诉你去哪",
-        "› 连不上自动回退"
-      ]
+      "en": "Cursor SQLite editing writes a .excised.jsonl sidecar rather than changing the live database. The first sidecar has no previous version to restore.",
+      "zh": "Cursor SQLite 编辑生成 .excised.jsonl 旁路文件，不修改在线数据库；首次生成的旁路文件没有旧版本可恢复。"
+    },
+    {
+      "en": "Model reranking is opt-in and can send transcript excerpts to the configured endpoint. Heuristic suggestions are review candidates, not proof that a turn is useless.",
+      "zh": "模型重排需主动开启，可能向所配端点发送会话片段。启发式建议只是待检查候选，不证明某轮无用。"
     }
   ],
   "scene": {
-    "kind": "hub-nodes",
-    "nodes": ["Claude Code", "Cursor"]
+    "kind": "neon-graph",
+    "fallback": "/assets/presentation/scene-dark.svg",
+    "fallbackLight": "/assets/presentation/scene-light.svg"
   },
-  "cta": {
-    "headline": {
-      "zh": "/clear 与 /compact 之外的第三选择",
-      "en": "The third option between /clear and /compact"
+  "story": {
+    "intro": {
+      "title": {
+        "en": "A concrete task",
+        "zh": "从实际任务出发"
+      },
+      "body": {
+        "en": "A failed detour can consume context while the rest of a session remains useful. Select the specific turns, inspect dependency warnings and retain a snapshot when changing an existing supported transcript.",
+        "zh": "失败的支线可能占用上下文，而其余会话仍然有用。可以选定具体轮次、检查依赖警告，并在修改已有支持格式文件时保留快照。"
+      }
     },
-    "sub": {
-      "zh": "开源、Apache-2.0、本地运行、默认不联网。Claude Code 与 Cursor 的会话都在磁盘上原位编辑。",
-      "en": "Open source, Apache-2.0, runs locally, offline by default. Edits Claude Code and Cursor sessions in place on disk."
-    },
-    "button": { "zh": "在 GitHub 上开始", "en": "Get started on GitHub" }
-  },
-  "footer": {
-    "tag": {
-      "zh": "给跑偏的 coding agent 会话做减法",
-      "en": "Subtractive editing for derailed coding-agent sessions"
-    }
-  },
-  "content_version": "v0.8.0"
+    "sections": [
+      {
+        "title": {
+          "en": "Follow the operation",
+          "zh": "处理过程"
+        },
+        "body": {
+          "en": "Format loaders produce a shared turn model. Heuristics rank removal candidates; optional model reranking refines the shortlist. The dependency graph checks selected turns, the TUI or cut command presents a diff, and writers apply changes with snapshot and edit-log support.",
+          "zh": "格式加载器生成共享轮次模型；启发式规则推荐候选，可选模型重排进一步排序。依赖图检查选定轮次，TUI 或 cut 命令展示差异，writer 在快照与编辑日志支持下应用修改。"
+        },
+        "image": {
+          "light": "/assets/presentation/process-light.svg",
+          "dark": "/assets/presentation/process-dark.svg",
+          "alt": {
+            "en": "Follow the operation",
+            "zh": "处理过程"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "Inside Excise",
+          "zh": "Excise 的内部流程"
+        },
+        "body": {
+          "en": "Format loaders produce a shared turn model. Heuristics rank removal candidates; optional model reranking refines the shortlist. The dependency graph checks selected turns, the TUI or cut command presents a diff, and writers apply changes with snapshot and edit-log support.",
+          "zh": "格式加载器生成共享轮次模型；启发式规则推荐候选，可选模型重排进一步排序。依赖图检查选定轮次，TUI 或 cut 命令展示差异，writer 在快照与编辑日志支持下应用修改。"
+        },
+        "image": {
+          "light": "/assets/presentation/architecture-light.svg",
+          "dark": "/assets/presentation/architecture-dark.svg",
+          "alt": {
+            "en": "Inside Excise",
+            "zh": "Excise 的内部流程"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "Connect the pieces",
+          "zh": "输入与输出"
+        },
+        "body": {
+          "en": "Choose the input and output route that matches your workflow. The local example below exercises the stated subset.",
+          "zh": "根据工作流选择输入与输出路径。本文本地示例验证其中明确说明的子流程。"
+        },
+        "image": {
+          "light": "/assets/presentation/integrations-light.svg",
+          "dark": "/assets/presentation/integrations-dark.svg",
+          "alt": {
+            "en": "Connect the pieces",
+            "zh": "输入与输出"
+          }
+        }
+      }
+    ],
+    "details": [
+      {
+        "title": {
+          "en": "Configuration",
+          "zh": "配置"
+        },
+        "body": {
+          "en": "--tool selects auto, claude or cursor. cut uses 1-based ranges such as 5-7,9; --dry-run prints the diff, --yes accepts a real write, and --force overrides dependency warnings. Snapshots live in ~/.excise and are pruned after 30 days on a later snapshot write. rollback --list lists IDs; rollback ID --to path selects a destination explicitly. Optional excise.toml is loaded from the project or XDG config, with [llm] backend, model, host, top_n, timeout_sec, provider and api_key_env.",
+          "zh": "--tool 可选 auto、claude、cursor。cut 使用从 1 开始的 5-7,9 等范围；--dry-run 展示差异，--yes 确认真实写入，--force 跳过依赖警告。快照放在 ~/.excise，后续写快照时清理超过 30 天的旧项。rollback --list 列出 ID，rollback ID --to path 显式指定恢复目标。可选 excise.toml 从项目或 XDG 配置加载，[llm] 支持 backend、model、host、top_n、timeout_sec、provider 与 api_key_env。"
+        }
+      },
+      {
+        "title": {
+          "en": "Further use",
+          "zh": "进一步使用"
+        },
+        "body": {
+          "en": "Run these commands from the repository root after installation. Replace paths for your own data.",
+          "zh": "安装后在仓库根目录运行以下命令；处理自己的数据时替换相应路径。"
+        },
+        "code": "go run ./cmd/excise list testdata/claude_session_simple.jsonl\ngo run ./cmd/excise suggest testdata/claude_session_polluted.jsonl --json\ngo run ./cmd/excise cut 5 testdata/claude_session_simple.jsonl --dry-run\n# Interactive review of your own file:\ngo run ./cmd/excise pick session.jsonl"
+      }
+    ]
+  }
 }

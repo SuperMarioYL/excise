@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "source_revision": "b186f68d40239d036638c4a8729cb6ba60e5daf9",
+  "scope": "Read-only cut preview on the bundled five-turn synthetic Claude transcript; no live session or snapshot store is modified.",
+  "steps": [
+    {
+      "label": "Recorded run",
+      "body": "Read-only cut preview on the bundled five-turn synthetic Claude transcript; no live session or snapshot store is modified.",
+      "command": "python3 examples/presentation_demo.py",
+      "output": "Will remove 1 turn(s) (including 0 pulled in by tool-call dependency):\n  - u-0003  [user] ~6t  Thanks, that is great.\ndry-run; no files written\nsource unchanged: True"
+    }
+  ]
+}

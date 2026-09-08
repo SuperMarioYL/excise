@@ -1,0 +1,90 @@
+{
+  "name": "Excise",
+  "tagline": "Remove selected transcript turns with a visible diff.",
+  "architecture": {
+    "title": "Inside Excise",
+    "nodes": [
+      {
+        "title": "Transcript loaders",
+        "detail": "internal/session"
+      },
+      {
+        "title": "Suggestions + rerank",
+        "detail": "internal/suggest; internal/llm"
+      },
+      {
+        "title": "Dependency graph",
+        "detail": "internal/session/dependency.go"
+      },
+      {
+        "title": "Diff + write",
+        "detail": "internal/tui; session/writer.go"
+      },
+      {
+        "title": "Snapshots",
+        "detail": "internal/safety"
+      }
+    ],
+    "edges": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        3,
+        4
+      ]
+    ]
+  },
+  "process": {
+    "title": "From input to a useful result",
+    "steps": [
+      {
+        "title": "Load five turns",
+        "detail": "Bundled Claude JSONL"
+      },
+      {
+        "title": "Preview turn 5",
+        "detail": "Dependency-aware diff"
+      },
+      {
+        "title": "Compare bytes",
+        "detail": "Source remains unchanged"
+      }
+    ],
+    "result": "The cut preview selects the fifth turn and leaves the input file byte-identical."
+  },
+  "integrations": {
+    "title": "Supported input and output routes",
+    "items": [
+      {
+        "title": "Claude Code JSONL",
+        "detail": "Read and rewrite supported records"
+      },
+      {
+        "title": "Cursor JSONL / SQLite",
+        "detail": "SQLite writes an excised sidecar"
+      },
+      {
+        "title": "TUI / range CLI",
+        "detail": "Interactive or explicit selection"
+      },
+      {
+        "title": "Ollama / remote API",
+        "detail": "Opt-in shortlist reranking"
+      },
+      {
+        "title": "Gzip snapshots",
+        "detail": "Rollback for an existing write target"
+      }
+    ]
+  }
+}
