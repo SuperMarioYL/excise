@@ -5,6 +5,75 @@ All notable changes to **Excise** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-09-11
+
+### Fixed
+- **`repeated_file_edit` path hints no longer emit invalid UTF-8 for
+  multibyte paths.** `shortPath` (internal/suggest/heuristics.go) tail-shortened
+  a >40-byte path with the byte slice `p[len(p)-39:]`, which can start in the
+  middle of a multibyte rune — for a CJK path the trigger reason embedded
+  orphaned UTF-8 bytes (verified: 6 of 10 byte-alignment offsets produced
+  invalid output, e.g. `"…\x98\x8e明明a/src/…"`), which then surfaced mangled
+  in `excise suggest --json`. The path hint is now truncated on rune
+  boundaries, the same treatment the v0.4 fix gave preview truncation. New
+  test `internal/suggest/short_path_test.go` pins valid-UTF-8 output across
+  byte alignments, end-to-end through `Score`.
+- **Backfilled the missing changelog entries for 0.6.0 / 0.7.0 / 0.8.0**
+  (this file lagged the shipped tags by three minor versions — its newest
+  entry was 0.5.0). The changelog is now part of the release lockstep.
+
+## [0.8.0] — 2026-08-28
+
+### Fixed
+- **Bumped the stale `var version` constant to `"0.8.0"`** (it read `"0.5.0"`
+  on a v0.7.0 tree). goreleaser injects the tag for release binaries, but the
+  documented `go install ...@latest` / `go build` paths do not, so
+  `excise --version` misreported by two minor bumps. A new
+  `cmd/excise/version_test.go` pins the in-source constant to the shipped
+  version so future drift fails CI.
+- **`is_error` is now honoured regardless of JSON spacing.** `looksLikeError`
+  substring-matched the compact `"is_error":true` form only; real Claude Code
+  tool_results (and excise's own fixture) use the spaced `"is_error": true`,
+  so a failing tool_use turn whose content also lacked an error word was
+  silently missed by the `tool_use_error_then_correction` heuristic — a false
+  negative in the suggestion engine. The flag is now matched by a
+  whitespace-insensitive regex.
+- **An uppercase ` ```JSON ` rerank fence no longer discards a valid LLM
+  verdict.** `parseRerankReply`'s fence strip was case-sensitive, so a model
+  emitting ` ```JSON\n[...]` failed the JSON parse and `--llm` silently fell
+  back to the heuristic ordering despite the model returning a valid rerank.
+  The fence (and any language tag) is now stripped case-insensitively.
+  New tests: `internal/suggest/looks_like_error_test.go`,
+  `internal/llm/rerank_reply_fence_test.go`.
+
+## [0.7.0] — 2026-07-28
+
+### Fixed
+- **`--top 0` ("all") is honoured under `--llm`.** The rerank path recomputed
+  the shortlist as `max(top, top_n)`, which silently re-capped `--top 0` to
+  the default `top_n=5` before the reranker saw it — re-introducing the v0.4
+  `top_n` sentinel bug for the "all" sentinel (verified: 13 scored candidates
+  sent only 5 to the LLM). The config `top_n` now only GROWS a real bound;
+  `top == 0` stays unbounded.
+- **A failed edit-log write no longer silently breaks the advertised
+  rollback.** `commitExcise` swallowed `safety.LogEdit`'s error right after
+  telling the user `excise rollback <snapID>`; on a cross-volume LogEdit
+  failure the bare rollback then failed with "no destination path". The error
+  is now surfaced as a non-fatal stderr warning with the
+  `excise rollback <id> --to <path>` workaround (the snapshot stays valid).
+
+## [0.6.0] — 2026-07-23
+
+### Fixed
+- **The m4 heuristics now fire on the production Cursor sqlite path.**
+  `extractEditPaths` / `extractTextFromRaw` re-parsed `t.Raw` expecting the
+  Cursor ENVELOPE shape `{"bubble":{...}}`, but the sqlite loader (the real
+  `state.vscdb` install) stores the BARE bubble value — so `RepeatedFileEdit`
+  never fired and the correction-phrase raw-text fallback returned `""`: a
+  silent correctness regression with zero Cursor `Raw` test coverage. Both
+  shapes are now accepted. New test `internal/suggest/heuristics_test.go`
+  covers the envelope and bare-bubble shapes so the regression cannot return.
+
 ## [0.5.0] — 2026-07-17
 
 ### Added

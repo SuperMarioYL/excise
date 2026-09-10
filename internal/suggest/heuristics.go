@@ -518,10 +518,16 @@ func extractTextFromRaw(raw []byte) string {
 }
 
 func shortPath(p string) string {
-	if len(p) <= 40 {
+	// fix-shortpath-multibyte-slice: cap by RUNE count, not byte offset. The
+	// old `p[len(p)-39:]` byte slice could start in the middle of a multibyte
+	// UTF-8 rune (acute for the zh-CN-first user base), embedding invalid
+	// UTF-8 into the repeated_file_edit trigger reason — the same bug class
+	// the v0.4 preview truncation fix closed for previewText/tui/main.go.
+	r := []rune(p)
+	if len(r) <= 40 {
 		return p
 	}
-	return "…" + p[len(p)-39:]
+	return "…" + string(r[len(r)-39:])
 }
 
 func shortToolID(id string) string {
