@@ -13,7 +13,7 @@ import (
 // This test pins the in-source constant to the shipped version so a future
 // silent drift fails CI.
 func TestVersionConstantMatchesShippedRelease(t *testing.T) {
-	want := "0.9.0"
+	want := "0.10.0"
 	if version != want {
 		t.Errorf("version constant = %q, want %q (bump it when cutting a release; goreleaser injects the tag only for gh releases, not go install/go build)", version, want)
 	}

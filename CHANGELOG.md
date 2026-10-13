@@ -5,6 +5,54 @@ All notable changes to **Excise** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] — 2026-10-14
+
+### Fixed
+- **Cursor sessions no longer load scrambled when bubbles carry no
+  timestamp.** `SortByTimestamp` (internal/session/loader.go) tie-broke equal
+  timestamps with a lexicographic `ID < ID` comparison and ordered zero
+  timestamps first — but real Cursor bubbles carry no `timestamp` field at all
+  (verified against a live `state.vscdb`: sampled `cursorDiskKV` bubble values
+  have `bubbleId`/`type`/`text`/`toolResults` keys and no timestamp), so every
+  real Cursor turn loaded with a zero timestamp and the whole conversation was
+  re-sorted into random UUID order before the TUI, `cut` indexes, or the
+  sidecar write ever saw it. The same root cause moved Claude's preserved
+  verbatim rows (mid-file unparseable lines, no-uuid noise rows — both zero
+  timestamp) to the TOP of the file on write-back, violating invariant 3.
+  `SortByTimestamp` now keeps zero-timestamp turns at their load position and
+  no longer tie-breaks equal timestamps by UUID; only genuinely timestamped
+  pairs are reordered. New tests `internal/session/session_order_test.go` pin
+  insertion order for a timestamp-less Cursor fixture, in-place preservation
+  of a mid-file corrupt Claude line through load → excise → write, and that
+  timestamped sessions still sort by time.
+- **Atomic writes no longer silently reset the transcript's file mode to
+  0600.** Every write path (ClaudeWriter, CursorWriter jsonl + sidecar,
+  `excise rollback`) replaced the destination via `os.CreateTemp` (mode 0600)
+  + rename without restoring permission bits — a 0644 session became
+  `-rw-------` after a single cut (verified repro). All four paths now chmod
+  the temp file to the destination's existing mode before the rename
+  (0644 fallback for a first-time write), and a chmod failure aborts the
+  write instead of silently degrading. New tests
+  `internal/session/atomic_mode_test.go` and
+  `internal/safety/rollback_mode_test.go`.
+- **`DefaultCursorPath` honours the documented Windows location.** The
+  package doc promises `%APPDATA%/Cursor/...` on Windows and goreleaser ships
+  windows binaries, but the candidates list only probed macOS and Linux — so
+  zero-arg Cursor discovery always failed on Windows. The
+  `AppData/Roaming/Cursor/User/globalStorage/state.vscdb` candidate is now
+  probed as well.
+
+### Changed
+- **The edit log's `removed_ids` now records the full dependency closure
+  actually removed, matching the confirmed preview.** `commitExcise` logged
+  only the raw seed ids while the write removes seeds plus their paired
+  tool_result turns (`session.Excise` closure) and the confirmation preview
+  already printed "including N pulled in by tool-call dependency". The audit
+  entry now lists the closure in `removed_ids` and keeps the raw seeds under
+  a new `seed_ids` field. New test `cmd/excise/commit_closure_test.go` cuts a
+  tool_use turn end-to-end and asserts the log lists both the owner and the
+  paired result.
+
 ## [0.9.0] — 2026-09-11
 
 ### Fixed

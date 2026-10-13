@@ -316,6 +316,12 @@ func (w *ClaudeWriter) Write(s *Session) error {
 		cleanup()
 		return err
 	}
+	// Keep the destination's permission bits — os.CreateTemp defaults to 0600
+	// and a bare rename would silently tighten the transcript's file mode.
+	if err := preserveFileMode(tmpPath, s.SourcePath); err != nil {
+		cleanup()
+		return fmt.Errorf("preserve mode: %w", err)
+	}
 	if err := os.Rename(tmpPath, s.SourcePath); err != nil {
 		cleanup()
 		return fmt.Errorf("rename: %w", err)

@@ -28,7 +28,7 @@ import (
 	"github.com/SuperMarioYL/excise/internal/tui"
 )
 
-var version = "0.9.0"
+var version = "0.10.0"
 
 func main() {
 	root := newRootCmd()
@@ -337,6 +337,13 @@ func commitExcise(s *session.Session, seeds map[string]bool, gf *globalFlags, so
 		snap = sn
 	}
 
+	// The write removes the full dependency closure (paired tool_results), and
+	// the preview above already advertises it — so the audit entry must record
+	// the closure too, not just the raw seeds, or the edit log understates
+	// every cut that pulled in tool_results. Computed against the pre-cut
+	// turns; g was built from the same slice at the top.
+	closure := g.Closure(s.Turns, seeds)
+
 	s.Turns = session.Excise(s.Turns, seeds)
 
 	w, err := session.WriterFor(s)
@@ -347,11 +354,16 @@ func commitExcise(s *session.Session, seeds map[string]bool, gf *globalFlags, so
 		return err
 	}
 
-	removed := make([]string, 0, len(seeds))
-	for id := range seeds {
+	removed := make([]string, 0, len(closure))
+	for id := range closure {
 		removed = append(removed, id)
 	}
 	sort.Strings(removed)
+	seedIDs := make([]string, 0, len(seeds))
+	for id := range seeds {
+		seedIDs = append(seedIDs, id)
+	}
+	sort.Strings(seedIDs)
 	snapID := ""
 	if snap != nil {
 		snapID = snap.ID
@@ -362,6 +374,7 @@ func commitExcise(s *session.Session, seeds map[string]bool, gf *globalFlags, so
 		"source_path": writeTarget,
 		"snapshot":    snapID,
 		"removed_ids": removed,
+		"seed_ids":    seedIDs,
 		"command":     source,
 		"tool":        string(s.Tool),
 	})

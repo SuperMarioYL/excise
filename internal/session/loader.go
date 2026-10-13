@@ -230,10 +230,18 @@ func previewText(s string) string {
 
 // SortByTimestamp ensures a stable display order. We rely on it after loading
 // any format to make the TUI consistent.
+//
+// Turns with a zero timestamp (real Cursor bubbles carry no timestamp field;
+// Claude preserved verbatim rows never get one) compare as equal to
+// everything, so the stable sort keeps them at their load position instead of
+// floating them to the front — reordering them would violate invariant 3 and
+// scramble sessions whose bubbles all lack timestamps (the lexicographic
+// UUID tie-break this sort used before v0.10.0 shuffled real Cursor
+// conversations into random order).
 func SortByTimestamp(turns []Turn) {
 	sort.SliceStable(turns, func(i, j int) bool {
-		if turns[i].Timestamp.Equal(turns[j].Timestamp) {
-			return turns[i].ID < turns[j].ID
+		if turns[i].Timestamp.IsZero() || turns[j].Timestamp.IsZero() {
+			return false
 		}
 		return turns[i].Timestamp.Before(turns[j].Timestamp)
 	})

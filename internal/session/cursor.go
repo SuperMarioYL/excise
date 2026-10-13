@@ -313,6 +313,10 @@ func (w *CursorWriter) writeSidecar(s *Session) error {
 		cleanup()
 		return fmt.Errorf("close sidecar: %w", err)
 	}
+	if err := preserveFileMode(tmpPath, out); err != nil {
+		cleanup()
+		return fmt.Errorf("preserve sidecar mode: %w", err)
+	}
 	return os.Rename(tmpPath, out)
 }
 
@@ -350,6 +354,12 @@ func (w *CursorWriter) writeJSONL(s *Session) error {
 		cleanup()
 		return fmt.Errorf("close jsonl: %w", err)
 	}
+	// The rename target here is the LIVE Cursor jsonl session — preserve its
+	// permission bits instead of silently tightening them to 0600.
+	if err := preserveFileMode(tmpPath, s.SourcePath); err != nil {
+		cleanup()
+		return fmt.Errorf("preserve mode: %w", err)
+	}
 	return os.Rename(tmpPath, s.SourcePath)
 }
 
@@ -373,10 +383,13 @@ func DefaultCursorPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// macOS canonical path. Linux/Windows fallbacks are best-effort.
+	// macOS canonical path. Linux and Windows fallbacks are best-effort; the
+	// Windows candidate is the %APPDATA% location the package doc promises
+	// and is what the shipped windows binaries probe.
 	candidates := []string{
 		filepath.Join(home, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb"),
 		filepath.Join(home, ".config", "Cursor", "User", "globalStorage", "state.vscdb"),
+		filepath.Join(home, "AppData", "Roaming", "Cursor", "User", "globalStorage", "state.vscdb"),
 	}
 	for _, c := range candidates {
 		if fi, err := os.Stat(c); err == nil && !fi.IsDir() {

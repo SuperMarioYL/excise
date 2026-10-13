@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -36,4 +37,19 @@ func WriteTarget(s *Session) string {
 		}
 	}
 	return s.SourcePath
+}
+
+// preserveFileMode copies the permission bits of dest (when it already
+// exists) onto tmp before the atomic rename. os.CreateTemp creates mode
+// 0600, so without this every atomic write silently tightened the
+// transcript's file mode; a first-time write (no destination yet) falls
+// back to the conventional 0644. Called after the tmp file is closed and
+// before os.Rename; a failure here must abort the write so the guarantee
+// stays honest rather than silently degrading to 0600 again.
+func preserveFileMode(tmpPath, destPath string) error {
+	perm := os.FileMode(0o644)
+	if fi, err := os.Stat(destPath); err == nil {
+		perm = fi.Mode().Perm()
+	}
+	return os.Chmod(tmpPath, perm)
 }

@@ -216,6 +216,17 @@ func Rollback(snapshotID, dest string) error {
 		_ = os.Remove(tmpPath)
 		return err
 	}
+	// os.CreateTemp defaults to 0600; restoring over an existing file must
+	// keep that file's permission bits, and a first-time restore gets the
+	// conventional 0644 instead of a private mode the user never asked for.
+	perm := os.FileMode(0o644)
+	if fi, err := os.Stat(dest); err == nil {
+		perm = fi.Mode().Perm()
+	}
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("preserve mode: %w", err)
+	}
 	if err := os.Rename(tmpPath, dest); err != nil {
 		_ = os.Remove(tmpPath)
 		return err
