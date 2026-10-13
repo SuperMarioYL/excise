@@ -203,6 +203,16 @@
     "details": [
       {
         "title": {
+          "en": "Release notes 0.10.0",
+          "zh": "0.10.0 修复说明"
+        },
+        "body": {
+          "en": "Sessions whose bubbles carry no timestamp field now keep their on-disk order instead of being shuffled into UUID order, writes and rollback preserve the file mode instead of silently tightening it to 0600, the default Cursor path probes the documented Windows location, and the edit log records the full dependency closure of every cut.",
+          "zh": "无时间戳字段的会话轮次不再被乱序重排，写入与回滚保留文件权限位不再悄悄收紧为 0600，默认 Cursor 路径补上文档承诺的 Windows 位置，编辑审计日志记录每次裁剪的完整依赖闭包。"
+        }
+      },
+      {
+        "title": {
           "en": "Configuration",
           "zh": "配置"
         },
@@ -224,5 +234,5 @@
       }
     ]
   },
-  "content_version": "v0.9.0"
+  "content_version": "v0.10.0"
 }
