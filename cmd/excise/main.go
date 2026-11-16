@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,7 +29,7 @@ import (
 	"github.com/SuperMarioYL/excise/internal/tui"
 )
 
-var version = "0.10.0"
+var version = "0.11.0"
 
 func main() {
 	root := newRootCmd()
@@ -73,9 +74,7 @@ ordering, stable ids, and atomic tool_use ↔ tool_result pairs.`,
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
-				gf.sessionArg = args[0]
-			}
+			gf.sessionArg = sessionPathFromArgs(cmd, args, gf.sessionArg)
 			return runPick(&gf)
 		},
 	}
@@ -108,9 +107,7 @@ func newListCmd(gf *globalFlags) *cobra.Command {
 		Short: "Print the turn table for a session (no edits).",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
-				gf.sessionArg = args[0]
-			}
+			gf.sessionArg = sessionPathFromArgs(cmd, args, gf.sessionArg)
 			s, err := loadSession(gf)
 			if err != nil {
 				return err
@@ -127,9 +124,7 @@ func newPickCmd(gf *globalFlags) *cobra.Command {
 		Short: "Open the interactive bubbletea picker.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
-				gf.sessionArg = args[0]
-			}
+			gf.sessionArg = sessionPathFromArgs(cmd, args, gf.sessionArg)
 			return runPick(gf)
 		},
 	}
@@ -143,7 +138,7 @@ func newCutCmd(gf *globalFlags) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rangeSpec := args[0]
 			if len(args) == 2 {
-				gf.sessionArg = args[1]
+				gf.sessionArg = sessionPathFromArgs(cmd, args[1:], gf.sessionArg)
 			}
 			s, err := loadSession(gf)
 			if err != nil {
@@ -195,6 +190,19 @@ func newRollbackCmd(gf *globalFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&listOnly, "list", false, "list snapshots and exit")
 	cmd.Flags().StringVar(&to, "to", "", "destination path (defaults to original)")
 	return cmd
+}
+
+// sessionPathFromArgs resolves the session path for a subcommand invocation.
+//
+// `--session` is documented as overriding the positional argument (see the
+// persistent flag help), so the positional form is only consulted when the
+// flag was not given. Subcommands whose first positional is not a path (cut's
+// range) pass the remaining args.
+func sessionPathFromArgs(cmd *cobra.Command, args []string, current string) string {
+	if len(args) == 1 && !cmd.Flags().Changed("session") {
+		return args[0]
+	}
+	return current
 }
 
 // loadSession resolves the session path and dispatches to the right loader.
@@ -324,6 +332,15 @@ func commitExcise(s *session.Session, seeds map[string]bool, gf *globalFlags, so
 	// + edit-log source_path must point at the real write target (the sidecar),
 	// never the live database.
 	writeTarget := session.WriteTarget(s)
+	// The edit log is the only record of where a snapshot came from, and
+	// `excise rollback <id>` resolves its destination from it. Record an
+	// absolute path: the loaders copy s.SourcePath verbatim from the CLI
+	// argument, so a relative invocation used to log a relative path that
+	// rollback then interpreted against its own cwd — restoring a stray file
+	// and leaving the real transcript cut.
+	if abs, err := filepath.Abs(writeTarget); err == nil {
+		writeTarget = abs
+	}
 
 	var snap *safety.Snapshot
 	// Only snapshot when the write target already exists. On a first sidecar cut

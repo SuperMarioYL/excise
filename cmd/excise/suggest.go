@@ -41,9 +41,7 @@ Five heuristics contribute to each turn's score:
 `,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
-				gf.sessionArg = args[0]
-			}
+			gf.sessionArg = sessionPathFromArgs(cmd, args, gf.sessionArg)
 			s, err := loadSession(gf)
 			if err != nil {
 				return err

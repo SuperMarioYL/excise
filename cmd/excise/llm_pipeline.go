@@ -161,6 +161,7 @@ func rankCandidates(ctx context.Context, gf *globalFlags, s *session.Session, to
 			if stderr != nil {
 				fmt.Fprintf(stderr, "[excise] LLM unavailable (%v) — falling back to heuristic ranking\n", err)
 			}
+			res.Picks = capPicks(res.Picks, top)
 			return res, nil
 		}
 		// Non-Unavailable errors are still treated as recoverable to keep
@@ -169,11 +170,26 @@ func rankCandidates(ctx context.Context, gf *globalFlags, s *session.Session, to
 		res.Fallback = true
 		res.FallbackErr = err
 		fmt.Fprintf(stderr, "[excise] LLM rerank failed (%v) — falling back to heuristic ranking\n", err)
+		res.Picks = capPicks(res.Picks, top)
 		return res, nil
 	}
-	res.Picks = reranked
+	// [llm].top_n may widen what is SENT to the reranker; the documented
+	// --top bound still governs what is returned/rendered.
+	res.Picks = capPicks(reranked, top)
 	res.UsedLLM = true
 	return res, nil
+}
+
+// capPicks applies the documented `--top` display bound ("show at most N
+// suggestions (0 = all)", suggest.go) to the picks handed back to the caller.
+// The LLM shortlist may deliberately be wider than --top when [llm].top_n is
+// larger (v0.4 semantics), but returning that wider list made an explicit
+// `--top 2` print 10 rows on both the rerank and fallback paths.
+func capPicks(picks []suggest.TurnScore, top int) []suggest.TurnScore {
+	if top > 0 && len(picks) > top {
+		return picks[:top]
+	}
+	return picks
 }
 
 // reasonsFor lifts the LLMReason fields off a rankResult into a map. Used

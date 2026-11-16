@@ -94,7 +94,7 @@ go run ./cmd/excise pick session.jsonl
 
 ## Configuration
 
---tool selects auto, claude or cursor. cut uses 1-based ranges such as 5-7,9; --dry-run prints the diff, --yes accepts a real write, and --force overrides dependency warnings. Snapshots live in ~/.excise and are pruned after 30 days on a later snapshot write. rollback --list lists IDs; rollback ID --to path selects a destination explicitly. Optional excise.toml is loaded from the project or XDG config, with [llm] backend, model, host, top_n, timeout_sec, provider and api_key_env.
+--tool selects auto, claude or cursor. An explicit --session path overrides the positional path. cut uses 1-based ranges such as 5-7,9; --dry-run prints the diff, --yes accepts a real write, and --force overrides dependency warnings. Snapshots live in ~/.excise and are pruned after 30 days on a later snapshot write; the edit log records the absolute transcript path, so rollback ID restores that file from any working directory. rollback --list lists IDs; rollback ID --to path selects a destination explicitly. Optional excise.toml is loaded from the project or XDG config, with [llm] backend, model, host, top_n, timeout_sec, provider, api_key, api_key_env and base_url; an explicit --top N still bounds the rows printed under --llm.
 
 ## Integrations and responsibilities
 

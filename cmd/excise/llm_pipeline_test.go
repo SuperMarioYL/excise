@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -256,6 +257,67 @@ func TestRankCandidatesLLMTopZeroKeepsAllCandidates(t *testing.T) {
 	if got, want := len(res.Picks), len(all); got != want {
 		t.Errorf("--top 0 --llm must rerank ALL %d candidates (honor the 0=all sentinel); got %d (silently re-capped to top_n=%d)",
 			want, got, cfg.LLM.TopN)
+	}
+}
+
+// TestRankCandidatesLLMTopBoundsPicksDespiteTopN locks in
+// fix-llm-topn-overflows-explicit-top: `--top` is documented as "show at most
+// N suggestions (0 = all)", but with --llm the shortlist was widened to
+// max(top, [llm].top_n) and the same list was returned, so `--top 2` with
+// top_n=10 printed 10 rows — on the rerank AND the fallback path.
+func TestRankCandidatesLLMTopBoundsPicksDespiteTopN(t *testing.T) {
+	home := t.TempDir()
+	cfgDir := filepath.Join(home, ".config", "excise")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatalf("mkdir config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "excise.toml"), []byte("[llm]\ntop_n = 10\n"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	s := loadFixture(t, "claude_session_llm_rerank.jsonl")
+	all := suggest.TopK(suggest.Score(s), 0, 0.0)
+	if len(all) < 3 {
+		t.Fatalf("test precondition: fixture must have >=3 candidates, has %d", len(all))
+	}
+
+	// No-op stub: mergeReplies returns the (wide) shortlist verbatim, so the
+	// returned length is exactly what the pipeline handed back.
+	withStubReranker(t, llm.NewStubReranker(nil, nil))
+	gf := &globalFlags{llm: true}
+	res, err := rankCandidates(context.Background(), gf, s, 2, 0.0, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("rankCandidates: %v", err)
+	}
+	if !res.UsedLLM {
+		t.Fatalf("UsedLLM should be true")
+	}
+	if got := len(res.Picks); got != 2 {
+		t.Errorf("--top 2 under --llm returned %d picks (top_n=10 must not widen the result)", got)
+	}
+
+	// The fallback path must honor the same bound.
+	withStubReranker(t, llm.NewStubReranker(llm.ErrLLMUnavailable, nil))
+	res, err = rankCandidates(context.Background(), gf, s, 2, 0.0, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("rankCandidates fallback: %v", err)
+	}
+	if !res.Fallback {
+		t.Fatalf("Fallback should be true")
+	}
+	if got := len(res.Picks); got != 2 {
+		t.Errorf("--top 2 fallback returned %d picks; the documented bound must hold", got)
+	}
+
+	// --top 0 ("all") stays unbounded.
+	res, err = rankCandidates(context.Background(), gf, s, 0, 0.0, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("rankCandidates top=0: %v", err)
+	}
+	if got, want := len(res.Picks), len(all); got != want {
+		t.Errorf("--top 0 must keep every candidate; got %d, want %d", got, want)
 	}
 }
 

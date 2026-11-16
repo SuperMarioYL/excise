@@ -5,6 +5,34 @@ All notable changes to **Excise** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-11-16
+
+### Fixed
+- **`--session` now overrides the positional path, as its help text always
+  promised.** Every subcommand's run function copied the positional argument
+  over the value cobra had already parsed from `--session`, so
+  `excise list --session A B` listed B and silently ignored the explicit
+  flag. The flag now wins; the positional form is only consulted when the
+  flag is absent, and `cut` resolves its path argument the same way. New test
+  `cmd/excise/session_flag_test.go` drives the real command tree.
+- **Rollback restores the transcript whose snapshot it recorded, from any
+  working directory.** The edit log stored `source_path` exactly as typed, so
+  a cut invoked with a relative path logged `s.jsonl`; `excise rollback <id>`
+  run from another directory then wrote a stray `./s.jsonl`, printed
+  "restored", and exited 0 while the real transcript stayed cut. `commitExcise`
+  now records the absolute write target, so rollback no longer depends on the
+  directory it is invoked from. New test
+  `cmd/excise/relative_source_path_test.go` performs a relative-path cut and a
+  rollback from a sibling directory.
+- **An explicit `--top N` still bounds the rows printed under `--llm`.**
+  `[llm].top_n` deliberately widens the candidate set sent to the reranker
+  (`max(--top, top_n)`), but that same wider list was returned and rendered,
+  so `--top 2` with `top_n = 10` printed ten candidates — on the rerank and
+  on the LLM-unavailable fallback path. The model still receives the wide
+  shortlist; the returned/printed list now honors the documented `--top`
+  bound (`--top 0` stays unbounded). Extended
+  `cmd/excise/llm_pipeline_test.go`.
+
 ## [0.10.0] — 2026-10-14
 
 ### Fixed

@@ -50,8 +50,8 @@
         "zh": "保留可恢复编辑"
       },
       "body": {
-        "en": "Existing write targets get a compressed snapshot.",
-        "zh": "修改已有目标前生成压缩快照。"
+        "en": "Existing write targets get a compressed snapshot, and rollback restores the recorded file path from any working directory.",
+        "zh": "修改已有目标前生成压缩快照；rollback 会恢复到记录的文件路径，与执行目录无关。"
       }
     }
   ],
@@ -112,8 +112,8 @@
       "zh": "Cursor SQLite 编辑生成 .excised.jsonl 旁路文件，不修改在线数据库；首次生成的旁路文件没有旧版本可恢复。"
     },
     {
-      "en": "Model reranking is opt-in and can send transcript excerpts to the configured endpoint. Heuristic suggestions are review candidates, not proof that a turn is useless.",
-      "zh": "模型重排需主动开启，可能向所配端点发送会话片段。启发式建议只是待检查候选，不证明某轮无用。"
+      "en": "Model reranking is opt-in and can send transcript excerpts to the configured endpoint. Heuristic suggestions are review candidates, not proof that a turn is useless. An explicit --top N still bounds the rows printed even when [llm].top_n requests a wider shortlist.",
+      "zh": "模型重排需主动开启，可能向所配端点发送会话片段。启发式建议只是待检查候选，不证明某轮无用。即使 [llm].top_n 请求更宽的候选集，显式 --top N 仍限制打印行数。"
     }
   ],
   "scene": {
@@ -203,12 +203,12 @@
     "details": [
       {
         "title": {
-          "en": "Release notes 0.10.0",
-          "zh": "0.10.0 修复说明"
+          "en": "Release notes 0.11.0",
+          "zh": "0.11.0 修复说明"
         },
         "body": {
-          "en": "Sessions whose bubbles carry no timestamp field now keep their on-disk order instead of being shuffled into UUID order, writes and rollback preserve the file mode instead of silently tightening it to 0600, the default Cursor path probes the documented Windows location, and the edit log records the full dependency closure of every cut.",
-          "zh": "无时间戳字段的会话轮次不再被乱序重排，写入与回滚保留文件权限位不再悄悄收紧为 0600，默认 Cursor 路径补上文档承诺的 Windows 位置，编辑审计日志记录每次裁剪的完整依赖闭包。"
+          "en": "An explicit --session path now overrides the positional path as documented, rollback records and restores the absolute transcript path so it works from any working directory, and an explicit --top N still bounds the rows printed under --llm.",
+          "zh": "显式 --session 路径现在按文档优先于位置参数；rollback 记录并恢复绝对会话路径，可从任意工作目录恢复；即使配合 --llm，显式 --top N 仍限制打印行数。"
         }
       },
       {
@@ -217,8 +217,8 @@
           "zh": "配置"
         },
         "body": {
-          "en": "--tool selects auto, claude or cursor. cut uses 1-based ranges such as 5-7,9; --dry-run prints the diff, --yes accepts a real write, and --force overrides dependency warnings. Snapshots live in ~/.excise and are pruned after 30 days on a later snapshot write. rollback --list lists IDs; rollback ID --to path selects a destination explicitly. Optional excise.toml is loaded from the project or XDG config, with [llm] backend, model, host, top_n, timeout_sec, provider and api_key_env.",
-          "zh": "--tool 可选 auto、claude、cursor。cut 使用从 1 开始的 5-7,9 等范围；--dry-run 展示差异，--yes 确认真实写入，--force 跳过依赖警告。快照放在 ~/.excise，后续写快照时清理超过 30 天的旧项。rollback --list 列出 ID，rollback ID --to path 显式指定恢复目标。可选 excise.toml 从项目或 XDG 配置加载，[llm] 支持 backend、model、host、top_n、timeout_sec、provider 与 api_key_env。"
+          "en": "--tool selects auto, claude or cursor. An explicit --session path overrides the positional path. cut uses 1-based ranges such as 5-7,9; --dry-run prints the diff, --yes accepts a real write, and --force overrides dependency warnings. Snapshots live in ~/.excise and are pruned after 30 days on a later snapshot write; the edit log records the absolute transcript path, so rollback ID restores that file from any working directory. rollback --list lists IDs; rollback ID --to path selects a destination explicitly. Optional excise.toml is loaded from the project or XDG config, with [llm] backend, model, host, top_n, timeout_sec, provider, api_key, api_key_env and base_url; an explicit --top N still bounds the rows printed under --llm.",
+          "zh": "--tool 可选 auto、claude、cursor。显式 --session 路径优先于位置参数。cut 使用从 1 开始的 5-7,9 等范围；--dry-run 展示差异，--yes 确认真实写入，--force 跳过依赖警告。快照放在 ~/.excise，后续写快照时清理超过 30 天的旧项；编辑日志记录绝对路径，因此 rollback ID 可从任意工作目录恢复到原文件。rollback --list 列出 ID，rollback ID --to path 显式指定恢复目标。可选 excise.toml 从项目或 XDG 配置加载，[llm] 支持 backend、model、host、top_n、timeout_sec、provider、api_key、api_key_env 与 base_url；即使配合 --llm，显式 --top N 仍限制打印行数。"
         }
       },
       {
@@ -234,5 +234,6 @@
       }
     ]
   },
-  "content_version": "v0.10.0"
+  "content_version": "v0.11.0",
+  "generated_at": "2026-11-16T01:50:00Z"
 }

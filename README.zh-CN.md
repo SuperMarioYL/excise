@@ -94,7 +94,7 @@ go run ./cmd/excise pick session.jsonl
 
 ## 配置
 
---tool 可选 auto、claude、cursor。cut 使用从 1 开始的 5-7,9 等范围；--dry-run 展示差异，--yes 确认真实写入，--force 跳过依赖警告。快照放在 ~/.excise，后续写快照时清理超过 30 天的旧项。rollback --list 列出 ID，rollback ID --to path 显式指定恢复目标。可选 excise.toml 从项目或 XDG 配置加载，[llm] 支持 backend、model、host、top_n、timeout_sec、provider 与 api_key_env。
+--tool 可选 auto、claude、cursor。显式 --session 路径优先于位置参数。cut 使用从 1 开始的 5-7,9 等范围；--dry-run 展示差异，--yes 确认真实写入，--force 跳过依赖警告。快照放在 ~/.excise，后续写快照时清理超过 30 天的旧项；编辑日志记录绝对路径，因此 rollback ID 可从任意工作目录恢复到原文件。rollback --list 列出 ID，rollback ID --to path 显式指定恢复目标。可选 excise.toml 从项目或 XDG 配置加载，[llm] 支持 backend、model、host、top_n、timeout_sec、provider、api_key、api_key_env 与 base_url；即使配合 --llm，显式 --top N 仍限制打印行数。
 
 ## 集成与职责分工
 
